@@ -44,7 +44,7 @@ dotnet test
 The Worker is an HTTP API that handles memory persistence and search.
 
 ```bash
-# Run the worker (default port: 37777)
+# Run the worker (default port: 37778)
 dotnet run --project src/ClaudeMem.Worker
 
 # Or with custom port
@@ -96,7 +96,7 @@ After=network.target
 Type=simple
 ExecStart=/opt/claude-mem/ClaudeMem.Worker
 Restart=always
-Environment=CLAUDE_MEM_WORKER_PORT=37777
+Environment=CLAUDE_MEM_WORKER_PORT=37778
 
 [Install]
 WantedBy=multi-user.target
@@ -107,19 +107,49 @@ sudo systemctl enable claude-mem-worker
 sudo systemctl start claude-mem-worker
 ```
 
+## Web Viewer UI
+
+The .NET port includes the same web viewer UI as the original TypeScript version.
+
+### Accessing the Viewer
+
+1. Start the Worker service:
+   ```bash
+   dotnet run --project src/ClaudeMem.Worker
+   ```
+
+2. Open browser to: `http://localhost:37778`
+
+### Features
+
+- Real-time observation feed with SSE updates
+- Project filtering dropdown
+- Observation, summary, and prompt cards
+- Dark/light theme toggle
+- Settings modal for context configuration
+- Console logs drawer
+
 ## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
+| `/` | GET | Viewer HTML page |
+| `/stream` | GET | SSE stream for real-time updates |
 | `/health` | GET | Health check |
-| `/api/stats` | GET | Worker statistics |
+| `/api/stats` | GET | Worker and database statistics |
+| `/api/projects` | GET | List of distinct projects |
 | `/api/observations` | GET | List observations (paginated) |
 | `/api/observation/{id}` | GET | Get observation by ID |
 | `/api/observations/batch` | POST | Batch get observations |
+| `/api/summaries` | GET | List summaries (paginated) |
+| `/api/summary/{id}` | GET | Get summary by ID |
+| `/api/prompts` | GET | List user prompts (paginated) |
+| `/api/prompt/{id}` | GET | Get prompt by ID |
 | `/api/sessions/init` | POST | Initialize session |
 | `/api/sessions/observations` | POST | Queue observation |
 | `/api/sessions/summarize` | POST | Queue summary |
-| `/api/processing-status` | GET | Queue status |
+| `/api/processing-status` | GET | Processing queue status |
+| `/api/processing` | POST | Trigger status broadcast |
 
 ## Database
 
