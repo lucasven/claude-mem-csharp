@@ -12,13 +12,22 @@ public static class ObservationEndpoints
             int? limit,
             string? project) =>
         {
+            var actualLimit = Math.Min(limit ?? 20, 100);
             var observations = repo.GetRecent(
-                limit: limit ?? 20,
+                limit: actualLimit + 1, // Fetch one extra to check hasMore
                 offset: offset ?? 0,
                 project: project);
-            var total = repo.GetCount(project);
 
-            return Results.Ok(new { total, observations });
+            var hasMore = observations.Count > actualLimit;
+            if (hasMore) observations = observations.Take(actualLimit).ToList();
+
+            return Results.Ok(new
+            {
+                items = observations,
+                hasMore,
+                offset = offset ?? 0,
+                limit = actualLimit
+            });
         });
 
         app.MapGet("/api/observation/{id:long}", (long id, IObservationRepository repo) =>
