@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ClaudeMem.Core\ClaudeMem.Core.csproj" />
+    <ProjectReference Include="..\..\src\ClaudeMem.Worker\ClaudeMem.Worker.csproj" />
   </ItemGroup>
 
 </Project>
