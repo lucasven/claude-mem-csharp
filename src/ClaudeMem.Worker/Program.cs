@@ -23,5 +23,6 @@ app.MapObservationEndpoints();
 app.MapSessionEndpoints();
 app.MapSummaryEndpoints();
 app.MapPromptEndpoints();
+app.MapMetadataEndpoints();
 
 app.Run();

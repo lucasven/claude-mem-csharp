@@ -112,6 +112,13 @@ public class SummaryRepository : ISummaryRepository
         };
     }
 
+    public long GetCount()
+    {
+        using var cmd = _db.Connection.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM session_summaries";
+        return (long)(cmd.ExecuteScalar() ?? 0);
+    }
+
     private static string? GetNullableString(SqliteDataReader reader, string column)
     {
         var ordinal = reader.GetOrdinal(column);

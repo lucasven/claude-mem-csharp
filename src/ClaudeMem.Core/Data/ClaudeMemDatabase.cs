@@ -6,6 +6,7 @@ namespace ClaudeMem.Core.Data;
 public class ClaudeMemDatabase : IDisposable
 {
     private readonly SqliteConnection _connection;
+    private readonly string _dbPath;
     private bool _disposed;
 
     public ClaudeMemDatabase(string connectionString = "")
@@ -14,11 +15,18 @@ public class ClaudeMemDatabase : IDisposable
         {
             var dataDir = GetDataDirectory();
             Directory.CreateDirectory(dataDir);
-            connectionString = $"Data Source={Path.Combine(dataDir, "claude-mem.db")}";
+            _dbPath = Path.Combine(dataDir, "claude-mem.db");
+            connectionString = $"Data Source={_dbPath}";
         }
         else if (connectionString == ":memory:")
         {
+            _dbPath = ":memory:";
             connectionString = "Data Source=:memory:";
+        }
+        else
+        {
+            // Extract path from connection string
+            _dbPath = connectionString.Replace("Data Source=", "");
         }
 
         _connection = new SqliteConnection(connectionString);
@@ -29,6 +37,8 @@ public class ClaudeMemDatabase : IDisposable
     }
 
     public SqliteConnection Connection => _connection;
+
+    public string GetDatabasePath() => _dbPath;
 
     private void ConfigurePragmas()
     {

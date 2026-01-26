@@ -96,6 +96,13 @@ public class SessionRepository : ISessionRepository
         cmd.ExecuteNonQuery();
     }
 
+    public long GetCount()
+    {
+        using var cmd = _db.Connection.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM sdk_sessions";
+        return (long)(cmd.ExecuteScalar() ?? 0);
+    }
+
     private static Session MapSession(SqliteDataReader reader)
     {
         return new Session
