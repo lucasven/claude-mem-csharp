@@ -68,5 +68,17 @@ public static class MetadataEndpoints
 
             return Results.Ok(new { projects });
         });
+
+        app.MapGet("/api/processing-status", () =>
+        {
+            // TODO: Implement actual processing queue tracking
+            return Results.Ok(new { isProcessing = false, queueDepth = 0 });
+        });
+
+        app.MapPost("/api/processing", () =>
+        {
+            // Broadcast current status (no-op for now)
+            return Results.Ok(new { status = "ok", isProcessing = false, queueDepth = 0, activeSessions = 0 });
+        });
     }
 }
