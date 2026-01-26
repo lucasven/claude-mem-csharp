@@ -5,7 +5,7 @@ using ClaudeMem.Worker.Endpoints;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure port from settings or default
-var port = Environment.GetEnvironmentVariable("CLAUDE_MEM_WORKER_PORT") ?? "37777";
+var port = Environment.GetEnvironmentVariable("CLAUDE_MEM_WORKER_PORT") ?? "37778";
 builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
 
 // Register services
@@ -20,5 +20,6 @@ var app = builder.Build();
 app.MapHealthEndpoints();
 app.MapObservationEndpoints();
 app.MapSessionEndpoints();
+app.MapSummaryEndpoints();
 
 app.Run();
