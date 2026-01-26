@@ -19,5 +19,6 @@ var app = builder.Build();
 // Map endpoints
 app.MapHealthEndpoints();
 app.MapObservationEndpoints();
+app.MapSessionEndpoints();
 
 app.Run();
