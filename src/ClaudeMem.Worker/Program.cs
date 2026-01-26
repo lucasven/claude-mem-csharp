@@ -13,6 +13,7 @@ builder.Services.AddSingleton<ClaudeMemDatabase>();
 builder.Services.AddSingleton<IObservationRepository, ObservationRepository>();
 builder.Services.AddSingleton<ISessionRepository, SessionRepository>();
 builder.Services.AddSingleton<ISummaryRepository, SummaryRepository>();
+builder.Services.AddSingleton<IUserPromptRepository, UserPromptRepository>();
 
 var app = builder.Build();
 
@@ -21,5 +22,6 @@ app.MapHealthEndpoints();
 app.MapObservationEndpoints();
 app.MapSessionEndpoints();
 app.MapSummaryEndpoints();
+app.MapPromptEndpoints();
 
 app.Run();
