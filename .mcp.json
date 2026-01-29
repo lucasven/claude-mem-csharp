@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "claude-mem-csharp": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/ClaudeMem.Mcp",
+      "args": [],
+      "env": {
+        "CLAUDE_MEM_DATA_DIR": "${CLAUDE_PLUGIN_ROOT}/data"
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "claude-mem-csharp-marketplace",
+  "owner": {
+    "name": "Lucas Alexandre Oppermann"
+  },
+  "metadata": {
+    "description": "Persistent memory compression system for Claude Code",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "claude-mem-csharp",
+      "source": "./",
+      "description": "Persistent memory compression system for Claude Code - stores observations and session summaries",
+      "version": "1.0.0",
+      "author": {
+        "name": "Lucas Alexandre Oppermann"
+      },
+      "homepage": "https://github.com/lucasven/claude-mem-csharp",
+      "repository": "https://github.com/lucasven/claude-mem-csharp",
+      "license": "AGPL-3.0",
+      "keywords": ["memory", "claude", "persistence", "observations", "summaries"],
+      "category": "productivity"
+    }
+  ]
+}

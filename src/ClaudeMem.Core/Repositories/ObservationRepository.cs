@@ -105,6 +105,21 @@ public class ObservationRepository : IObservationRepository
         return results;
     }
 
+    public List<Observation> GetBySessionId(string sessionId)
+    {
+        using var cmd = _db.Connection.CreateCommand();
+        cmd.CommandText = "SELECT * FROM observations WHERE memory_session_id = @sessionId ORDER BY created_at_epoch ASC";
+        cmd.Parameters.AddWithValue("@sessionId", sessionId);
+
+        var results = new List<Observation>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            results.Add(MapObservation(reader));
+        }
+        return results;
+    }
+
     public int GetCount(string? project = null)
     {
         using var cmd = _db.Connection.CreateCommand();

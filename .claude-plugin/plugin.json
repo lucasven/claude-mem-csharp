@@ -1,0 +1,14 @@
+{
+  "name": "claude-mem-csharp",
+  "description": "Persistent memory compression system for Claude Code - stores observations and session summaries",
+  "version": "1.0.0",
+  "author": {
+    "name": "Lucas Alexandre Oppermann"
+  },
+  "homepage": "https://github.com/lucasven/claude-mem-csharp",
+  "repository": "https://github.com/lucasven/claude-mem-csharp",
+  "license": "AGPL-3.0",
+  "keywords": ["memory", "claude", "persistence", "observations", "summaries"],
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json"
+}

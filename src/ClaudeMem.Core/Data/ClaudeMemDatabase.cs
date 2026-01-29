@@ -14,7 +14,7 @@ public class ClaudeMemDatabase : IDisposable
         {
             var dataDir = GetDataDirectory();
             Directory.CreateDirectory(dataDir);
-            connectionString = $"Data Source={Path.Combine(dataDir, "claude-mem.db")}";
+            connectionString = $"Data Source={Path.Combine(dataDir, "claude-mem-csharp.db")}";
         }
         else if (connectionString == ":memory:")
         {
@@ -76,7 +76,7 @@ public class ClaudeMemDatabase : IDisposable
     private static string GetDataDirectory()
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return Path.Combine(home, ".claude-mem");
+        return Path.Combine(home, ".claude-mem-csharp");
     }
 
     public void Dispose()

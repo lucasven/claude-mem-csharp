@@ -1,6 +1,7 @@
 using ClaudeMem.Core.Data;
 using ClaudeMem.Core.Repositories;
 using ClaudeMem.Worker.Endpoints;
+using ClaudeMem.Worker.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +14,10 @@ builder.Services.AddSingleton<ClaudeMemDatabase>();
 builder.Services.AddSingleton<IObservationRepository, ObservationRepository>();
 builder.Services.AddSingleton<ISessionRepository, SessionRepository>();
 builder.Services.AddSingleton<ISummaryRepository, SummaryRepository>();
+builder.Services.AddSingleton<IClaudeService, ClaudeService>();
+builder.Services.AddSingleton<IBackgroundQueue, BackgroundQueue>();
+builder.Services.AddHostedService<ObservationProcessorService>();
+builder.Services.AddHostedService<SummaryProcessorService>();
 
 var app = builder.Build();
 

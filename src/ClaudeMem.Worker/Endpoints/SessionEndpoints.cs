@@ -1,6 +1,7 @@
 using ClaudeMem.Core.Models;
 using ClaudeMem.Core.Repositories;
 using ClaudeMem.Worker.Models;
+using ClaudeMem.Worker.Services;
 
 namespace ClaudeMem.Worker.Endpoints;
 
@@ -42,10 +43,16 @@ public static class SessionEndpoints
 
         app.MapPost("/api/sessions/observations", (
             ObservationRequest request,
-            ISessionRepository sessions) =>
+            IBackgroundQueue queue) =>
         {
-            // Queue observation for processing
-            // For now, just acknowledge receipt
+            queue.QueueObservation(new ObservationWorkItem(
+                request.ContentSessionId,
+                request.ToolName,
+                request.ToolInput,
+                request.ToolResponse,
+                request.Cwd
+            ));
+
             return Results.Ok(new
             {
                 status = "queued"
@@ -54,21 +61,26 @@ public static class SessionEndpoints
 
         app.MapPost("/api/sessions/summarize", (
             SummarizeRequest request,
-            ISessionRepository sessions) =>
+            IBackgroundQueue queue) =>
         {
-            // Queue summary generation
+            queue.QueueSummary(new SummaryWorkItem(
+                request.ContentSessionId,
+                request.LastAssistantMessage
+            ));
+
             return Results.Ok(new
             {
                 status = "queued"
             });
         });
 
-        app.MapGet("/api/processing-status", () =>
+        app.MapGet("/api/processing-status", (IBackgroundQueue queue) =>
         {
+            var queueDepth = queue.ObservationQueueDepth + queue.SummaryQueueDepth;
             return Results.Ok(new
             {
-                isProcessing = false,
-                queueDepth = 0
+                isProcessing = queueDepth > 0,
+                queueDepth
             });
         });
     }

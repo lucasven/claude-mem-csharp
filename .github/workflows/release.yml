@@ -1,0 +1,172 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+env:
+  DOTNET_VERSION: '9.0.x'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            artifact: win-x64
+          - os: windows-latest
+            rid: win-arm64
+            artifact: win-arm64
+          - os: ubuntu-latest
+            rid: linux-x64
+            artifact: linux-x64
+          - os: ubuntu-latest
+            rid: linux-arm64
+            artifact: linux-arm64
+          - os: macos-latest
+            rid: osx-x64
+            artifact: osx-x64
+          - os: macos-latest
+            rid: osx-arm64
+            artifact: osx-arm64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build ClaudeMem.Hooks
+        run: |
+          dotnet publish src/ClaudeMem.Hooks/ClaudeMem.Hooks.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            -o ./publish/${{ matrix.artifact }} \
+            --self-contained true \
+            /p:PublishSingleFile=true \
+            /p:EnableCompressionInSingleFile=true \
+            /p:IncludeNativeLibrariesForSelfExtract=true
+        shell: bash
+
+      - name: Build ClaudeMem.Mcp
+        run: |
+          dotnet publish src/ClaudeMem.Mcp/ClaudeMem.Mcp.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            -o ./publish/${{ matrix.artifact }} \
+            --self-contained true \
+            /p:PublishSingleFile=true \
+            /p:EnableCompressionInSingleFile=true \
+            /p:IncludeNativeLibrariesForSelfExtract=true
+        shell: bash
+
+      - name: Build ClaudeMem.Worker
+        run: |
+          dotnet publish src/ClaudeMem.Worker/ClaudeMem.Worker.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            -o ./publish/${{ matrix.artifact }} \
+            --self-contained true \
+            /p:PublishSingleFile=true \
+            /p:EnableCompressionInSingleFile=true \
+            /p:IncludeNativeLibrariesForSelfExtract=true
+        shell: bash
+
+      - name: Clean up build artifacts
+        run: |
+          rm -f ./publish/${{ matrix.artifact }}/*.pdb
+          rm -f ./publish/${{ matrix.artifact }}/*.deps.json
+          rm -f ./publish/${{ matrix.artifact }}/*.runtimeconfig.json
+        shell: bash
+
+      - name: Create archive (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd publish
+          tar -czvf claude-mem-csharp-${{ matrix.artifact }}.tar.gz ${{ matrix.artifact }}
+
+      - name: Create archive (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          Compress-Archive -Path "./publish/${{ matrix.artifact }}/*" -DestinationPath "./publish/claude-mem-csharp-${{ matrix.artifact }}.zip"
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-mem-csharp-${{ matrix.artifact }}
+          path: |
+            publish/*.tar.gz
+            publish/*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec mv {} release/ \;
+          ls -la release/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version || github.ref_name }}
+          name: Release ${{ github.event.inputs.version || github.ref_name }}
+          draft: false
+          prerelease: false
+          files: release/*
+          body: |
+            ## Claude-Mem C# ${{ github.event.inputs.version || github.ref_name }}
+
+            Self-contained binaries for all platforms. No .NET SDK installation required.
+
+            ### Installation
+
+            **Via Claude Code plugin:**
+            ```
+            /plugin marketplace add lucasven/claude-mem-csharp
+            /plugin install claude-mem-csharp@claude-mem-csharp-marketplace
+            ```
+
+            **Manual installation:**
+            1. Download the appropriate archive for your platform
+            2. Extract to a location of your choice
+            3. Run `./claude-mem-csharp install --global`
+
+            ### Platforms
+            - `win-x64` - Windows x64
+            - `win-arm64` - Windows ARM64
+            - `linux-x64` - Linux x64
+            - `linux-arm64` - Linux ARM64
+            - `osx-x64` - macOS x64 (Intel)
+            - `osx-arm64` - macOS ARM64 (Apple Silicon)
