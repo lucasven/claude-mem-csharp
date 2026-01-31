@@ -6,6 +6,8 @@ A .NET 9 port of [claude-mem](https://github.com/thedotmack/claude-mem) - the pe
 
 This is a clean-room .NET implementation of claude-mem, created for improved stability and maintainability. The original TypeScript/Bun implementation works well but can experience stability issues on certain platforms. This .NET port provides:
 
+> **Note:** The original claude-mem's feature that auto-generates `CLAUDE.md` files in project directories has been **intentionally removed**. This port only stores data in `~/.claude-mem/` and never writes files to your project folders.
+
 - **Cross-platform stability** - .NET 9 runtime with consistent behavior across Windows, macOS, and Linux
 - **Native AOT compilation** - Faster startup times for CLI hooks
 - **SQLite with Microsoft.Data.Sqlite** - Battle-tested database layer
