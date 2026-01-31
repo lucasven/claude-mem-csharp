@@ -121,6 +121,54 @@ sudo systemctl start claude-mem-worker
 | `/api/sessions/summarize` | POST | Queue summary |
 | `/api/processing-status` | GET | Queue status |
 
+### API Usage Examples
+
+**Initialize a session:**
+```bash
+curl -X POST http://localhost:37777/api/sessions/init \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contentSessionId": "my-session-123",
+    "project": "/path/to/project",
+    "prompt": "Initial task description"
+  }'
+# Response: {"sessionDbId":1,"promptNumber":1,"skipped":false}
+```
+
+**Queue an observation:**
+```bash
+curl -X POST http://localhost:37777/api/sessions/observations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contentSessionId": "my-session-123",
+    "toolName": "read_file",
+    "toolInput": {"path": "/etc/hosts"},
+    "toolResponse": "...",
+    "cwd": "/home/user"
+  }'
+# Response: {"status":"queued"}
+```
+
+**Request summary generation:**
+```bash
+curl -X POST http://localhost:37777/api/sessions/summarize \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contentSessionId": "my-session-123",
+    "lastAssistantMessage": "Task completed successfully"
+  }'
+# Response: {"status":"queued"}
+```
+
+**Check health and stats:**
+```bash
+curl http://localhost:37777/health
+# Response: {"status":"healthy"}
+
+curl http://localhost:37777/api/stats
+# Response: {"worker":{"version":"1.0.0","uptime":12345,"port":37777},"database":{"observations":42}}
+```
+
 ## Database
 
 SQLite database is stored at `~/.claude-mem/claude-mem.db` with:

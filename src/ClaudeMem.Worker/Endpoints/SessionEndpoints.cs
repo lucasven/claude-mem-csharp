@@ -12,6 +12,25 @@ public static class SessionEndpoints
             SessionInitRequest request,
             ISessionRepository sessions) =>
         {
+            // Validate required fields
+            if (string.IsNullOrWhiteSpace(request.ContentSessionId))
+            {
+                return Results.BadRequest(new
+                {
+                    error = "contentSessionId is required",
+                    hint = "Expected fields: contentSessionId (string), project (string), prompt (string, optional)"
+                });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Project))
+            {
+                return Results.BadRequest(new
+                {
+                    error = "project is required",
+                    hint = "Expected fields: contentSessionId (string), project (string), prompt (string, optional)"
+                });
+            }
+
             var existing = sessions.GetByContentSessionId(request.ContentSessionId);
             if (existing != null)
             {
@@ -44,6 +63,15 @@ public static class SessionEndpoints
             ObservationRequest request,
             ISessionRepository sessions) =>
         {
+            // Validate required fields
+            if (string.IsNullOrWhiteSpace(request.ContentSessionId))
+            {
+                return Results.BadRequest(new
+                {
+                    error = "contentSessionId is required"
+                });
+            }
+
             // Queue observation for processing
             // For now, just acknowledge receipt
             return Results.Ok(new
@@ -56,6 +84,15 @@ public static class SessionEndpoints
             SummarizeRequest request,
             ISessionRepository sessions) =>
         {
+            // Validate required fields
+            if (string.IsNullOrWhiteSpace(request.ContentSessionId))
+            {
+                return Results.BadRequest(new
+                {
+                    error = "contentSessionId is required"
+                });
+            }
+
             // Queue summary generation
             return Results.Ok(new
             {
