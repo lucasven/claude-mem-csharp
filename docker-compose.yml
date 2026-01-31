@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  claude-mem-worker:
+    build: .
+    container_name: claude-mem-worker
+    restart: unless-stopped
+    ports:
+      - "37777:37777"
+    volumes:
+      - claude-mem-data:/home/appuser/.claude-mem
+    environment:
+      - ASPNETCORE_URLS=http://+:37777
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:37777/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  claude-mem-data:
