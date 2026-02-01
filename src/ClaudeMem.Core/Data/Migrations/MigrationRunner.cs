@@ -12,7 +12,8 @@ public class MigrationRunner
         _connection = connection;
         _migrations =
         [
-            new Migration001_InitialSchema()
+            new Migration001_InitialSchema(),
+            new Migration002_FTS5Search()
         ];
     }
 

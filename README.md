@@ -12,6 +12,7 @@ This is a clean-room .NET implementation of claude-mem, created for improved sta
 - **Native AOT compilation** - Faster startup times for CLI hooks
 - **SQLite with Microsoft.Data.Sqlite** - Battle-tested database layer
 - **ASP.NET Core Minimal APIs** - Lightweight HTTP worker service
+- **Hybrid Search** - FTS5 keyword + vector semantic search combined
 
 ## Architecture
 
@@ -19,6 +20,9 @@ This is a clean-room .NET implementation of claude-mem, created for improved sta
 claude-mem-csharp/
 ├── src/
 │   ├── ClaudeMem.Core/           # Domain models, repositories, database
+│   │   ├── Data/                 # SQLite + migrations (including FTS5)
+│   │   ├── Services/             # Search services (FTS5, Hybrid, Vector)
+│   │   └── Repositories/         # Data access layer
 │   ├── ClaudeMem.Worker/         # HTTP API service (ASP.NET Core)
 │   └── ClaudeMem.Hooks/          # CLI hooks for Claude Code integration
 └── tests/
@@ -28,8 +32,6 @@ claude-mem-csharp/
 ## Requirements
 
 - [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
-- Python 3.10+ (for ChromaDB semantic search)
-- [uv](https://docs.astral.sh/uv/) package manager (optional, for running chroma-mcp)
 
 ## Building
 
@@ -40,6 +42,27 @@ dotnet build
 # Run tests
 dotnet test
 ```
+
+## Search Architecture
+
+This port implements a **3-layer workflow** for token-efficient search:
+
+```
+Layer 1: /api/search     → Get index with IDs (~50-100 tokens/result)
+Layer 2: /api/timeline   → Get chronological context around results
+Layer 3: /api/observations/batch → Fetch full details for selected IDs
+```
+
+### Hybrid Search
+
+Combines two retrieval methods for best results:
+
+- **FTS5 (SQLite Full-Text Search)** - Fast keyword matching, great for exact terms, IDs, code symbols
+- **Vector Similarity** - Semantic matching, finds related content even with different wording
+
+Weighted scoring merges results: `score = (vectorWeight × vectorScore) + (textWeight × ftsScore)`
+
+Default weights: 70% vector, 30% FTS5 (configurable)
 
 ## Deployment
 
@@ -59,35 +82,17 @@ CLAUDE_MEM_WORKER_PORT=38888 dotnet run --project src/ClaudeMem.Worker
 
 ```bash
 # Publish self-contained executables
-dotnet publish src/ClaudeMem.Worker -c Release -r win-x64 --self-contained
-dotnet publish src/ClaudeMem.Hooks -c Release -r win-x64 --self-contained
-
-# For Linux
 dotnet publish src/ClaudeMem.Worker -c Release -r linux-x64 --self-contained
 dotnet publish src/ClaudeMem.Hooks -c Release -r linux-x64 --self-contained
 
 # For macOS
-dotnet publish src/ClaudeMem.Worker -c Release -r osx-x64 --self-contained
-dotnet publish src/ClaudeMem.Hooks -c Release -r osx-arm64 --self-contained
-```
+dotnet publish src/ClaudeMem.Worker -c Release -r osx-arm64 --self-contained
 
-### Native AOT (Faster Startup)
-
-For the Hooks CLI, Native AOT compilation provides near-instant startup:
-
-```bash
-dotnet publish src/ClaudeMem.Hooks -c Release -r win-x64 -p:PublishAot=true
+# For Windows
+dotnet publish src/ClaudeMem.Worker -c Release -r win-x64 --self-contained
 ```
 
 ### Running as a Service
-
-**Windows (Task Scheduler or Windows Service):**
-```powershell
-# Create a scheduled task to run at startup
-$action = New-ScheduledTaskAction -Execute "C:\path\to\ClaudeMem.Worker.exe"
-$trigger = New-ScheduledTaskTrigger -AtStartup
-Register-ScheduledTask -TaskName "ClaudeMemWorker" -Action $action -Trigger $trigger
-```
 
 **Linux (systemd):**
 ```ini
@@ -113,138 +118,133 @@ sudo systemctl start claude-mem-worker
 
 ## API Endpoints
 
+### Search (3-Layer Workflow)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/search` | GET | Hybrid search (FTS5 + vector) |
+| `/api/timeline` | GET | Chronological context around an observation |
+| `/api/observations/batch` | POST | Fetch full details by IDs |
+| `/api/search/status` | GET | Search service status |
+| `/api/search/rebuild-fts` | POST | Rebuild FTS5 index |
+
+### Sessions & Observations
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/sessions/init` | POST | Initialize session |
+| `/api/sessions/observations` | POST | Store observation (auto-indexes) |
+| `/api/sessions/summarize` | POST | Store summary |
+| `/api/observations` | GET | List observations (paginated) |
+| `/api/observation/{id}` | GET | Get single observation |
+| `/api/processing-status` | GET | Queue status |
+
+### Health
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
 | `/api/stats` | GET | Worker statistics |
-| `/api/observations` | GET | List observations (paginated) |
-| `/api/observation/{id}` | GET | Get observation by ID |
-| `/api/observations/batch` | POST | Batch get observations |
-| `/api/sessions/init` | POST | Initialize session |
-| `/api/sessions/observations` | POST | Queue observation |
-| `/api/sessions/summarize` | POST | Queue summary |
-| `/api/processing-status` | GET | Queue status |
 
-### API Usage Examples
+## Configuration
 
-**Initialize a session:**
+### Environment Variables
+
 ```bash
+# Worker port (default: 37777)
+CLAUDE_MEM_WORKER_PORT=37777
+
+# Project name for collections
+CLAUDE_MEM_PROJECT=my-project
+
+# Vector search (disabled by default - FTS5 always available)
+CLAUDE_MEM_VECTOR_ENABLED=true
+
+# OpenAI embeddings (required if vector enabled)
+CLAUDE_MEM_EMBEDDING_PROVIDER=openai
+CLAUDE_MEM_EMBEDDING_API_KEY=sk-...
+CLAUDE_MEM_EMBEDDING_MODEL=text-embedding-3-small
+CLAUDE_MEM_EMBEDDING_BASE_URL=https://api.openai.com/v1/  # optional
+
+# Vector store: sqlite (default), qdrant
+CLAUDE_MEM_VECTOR_STORE=sqlite
+QDRANT_URL=http://localhost:6333  # if using qdrant
+```
+
+### Recommended Setups
+
+**Option 1: FTS5 Only (Zero Dependencies)**
+```bash
+# No configuration needed - FTS5 search works out of the box
+# Great for keyword search, code symbols, exact matches
+```
+
+**Option 2: Hybrid with OpenAI (Best Quality)**
+```bash
+CLAUDE_MEM_VECTOR_ENABLED=true
+CLAUDE_MEM_EMBEDDING_API_KEY=sk-your-openai-key
+# Uses OpenAI text-embedding-3-small + SQLite vector store
+# Best semantic understanding
+```
+
+**Option 3: Hybrid with OpenRouter (Cost Effective)**
+```bash
+CLAUDE_MEM_VECTOR_ENABLED=true
+CLAUDE_MEM_EMBEDDING_API_KEY=sk-or-your-openrouter-key
+CLAUDE_MEM_EMBEDDING_BASE_URL=https://openrouter.ai/api/v1/
+CLAUDE_MEM_EMBEDDING_MODEL=openai/text-embedding-3-small
+```
+
+## API Usage Examples
+
+### Search Workflow
+
+```bash
+# Step 1: Search for index
+curl "http://localhost:37777/api/search?query=authentication%20bug&limit=10"
+# Response: { "results": [{ "observationId": 123, "score": 0.85, ... }] }
+
+# Step 2: Get timeline context for interesting result
+curl "http://localhost:37777/api/timeline?anchor=123&depthBefore=3&depthAfter=3"
+# Response: { "before": [...], "anchor": {...}, "after": [...] }
+
+# Step 3: Fetch full details for selected observations
+curl -X POST "http://localhost:37777/api/observations/batch" \
+  -H "Content-Type: application/json" \
+  -d '{"ids": [123, 125, 127]}'
+```
+
+### Store Observations
+
+```bash
+# Initialize session
 curl -X POST http://localhost:37777/api/sessions/init \
   -H "Content-Type: application/json" \
   -d '{
-    "contentSessionId": "my-session-123",
-    "project": "/path/to/project",
-    "prompt": "Initial task description"
+    "contentSessionId": "session-123",
+    "project": "/path/to/project"
   }'
-# Response: {"sessionDbId":1,"promptNumber":1,"skipped":false}
-```
 
-**Queue an observation:**
-```bash
+# Store observation (auto-indexed for both FTS5 and vector)
 curl -X POST http://localhost:37777/api/sessions/observations \
   -H "Content-Type: application/json" \
   -d '{
-    "contentSessionId": "my-session-123",
+    "contentSessionId": "session-123",
     "toolName": "read_file",
-    "toolInput": {"path": "/etc/hosts"},
-    "toolResponse": "...",
-    "cwd": "/home/user"
+    "toolResponse": "file contents...",
+    "title": "Read config file",
+    "observationType": "discovery"
   }'
-# Response: {"status":"queued"}
-```
-
-**Request summary generation:**
-```bash
-curl -X POST http://localhost:37777/api/sessions/summarize \
-  -H "Content-Type: application/json" \
-  -d '{
-    "contentSessionId": "my-session-123",
-    "lastAssistantMessage": "Task completed successfully"
-  }'
-# Response: {"status":"queued"}
-```
-
-**Check health and stats:**
-```bash
-curl http://localhost:37777/health
-# Response: {"status":"healthy"}
-
-curl http://localhost:37777/api/stats
-# Response: {"worker":{"version":"1.0.0","uptime":12345,"port":37777},"database":{"observations":42}}
+# Response: {"status":"stored","observationId":1,"ftsIndexed":true,"vectorIndexing":true}
 ```
 
 ## Database
 
-SQLite database is stored at `~/.claude-mem/claude-mem.db` with:
-- WAL mode for concurrent access
-- Automatic migrations
-
-## Semantic Search
-
-This port includes optional semantic search with pluggable backends:
-
-### Embedding Providers
-- **Ollama** (default): Local embeddings via Ollama API
-- More providers coming soon (OpenAI, HuggingFace)
-
-### Vector Stores
-- **SQLite** (default): Built-in, zero dependencies, good for <100k vectors
-- **Qdrant**: High-performance vector DB via HTTP API
-
-### Configuration
-
-```bash
-# Enable/disable semantic search (default: true)
-CLAUDE_MEM_SEARCH_ENABLED=true
-
-# Embedding provider: ollama (default)
-CLAUDE_MEM_EMBEDDING_PROVIDER=ollama
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_EMBED_MODEL=nomic-embed-text
-
-# Vector store: sqlite (default), qdrant
-CLAUDE_MEM_VECTOR_STORE=sqlite
-QDRANT_URL=http://localhost:6333
-
-# Project name for collection
-CLAUDE_MEM_PROJECT=my-project
-```
-
-### Recommended Setup
-
-**Option 1: SQLite (Zero Dependencies)**
-```bash
-# Just works out of the box
-CLAUDE_MEM_VECTOR_STORE=sqlite
-# Note: Requires Ollama for embeddings
-```
-
-**Option 2: Ollama + SQLite (Local, Fast)**
-```bash
-# Install Ollama: https://ollama.ai
-ollama pull nomic-embed-text
-# That's it! Embeddings are local, vector store is SQLite
-```
-
-**Option 3: Ollama + Qdrant (Production)**
-```bash
-# Run Qdrant
-docker run -p 6333:6333 qdrant/qdrant
-
-# Configure
-CLAUDE_MEM_VECTOR_STORE=qdrant
-QDRANT_URL=http://localhost:6333
-```
-
-### Search API
-
-```bash
-# Search for similar observations
-curl "http://localhost:37777/api/search?query=authentication%20bug&limit=5"
-
-# Check search status
-curl "http://localhost:37777/api/search/status"
-```
+SQLite database at `~/.claude-mem/claude-mem.db`:
+- **WAL mode** for concurrent access
+- **FTS5 virtual tables** for full-text search
+- **Automatic migrations** on startup
+- **Auto-sync triggers** keep FTS5 index updated
 
 ## License
 
