@@ -50,21 +50,14 @@ public static class HealthEndpoints
                 }
             }
 
-            // Get recent observations via hybrid search if query provided
-            if (!string.IsNullOrEmpty(project))
+            // Get recent observations for project
+            var recentObs = observations.GetRecent(limit: 10, project: project);
+            if (recentObs.Any())
             {
-                var searchResults = await search.SearchAsync(
-                    query: project,
-                    limit: 10,
-                    ct: ct);
-
-                if (searchResults.Any())
+                contextParts.Add("## Recent Observations\n");
+                foreach (var obs in recentObs.Take(5))
                 {
-                    contextParts.Add("## Recent Observations\n");
-                    foreach (var result in searchResults.Take(5))
-                    {
-                        contextParts.Add($"- [{result.Type}] {result.Title} (#{result.ObservationId})");
-                    }
+                    contextParts.Add($"- [{obs.Type}] {obs.Title ?? obs.Narrative?.Substring(0, Math.Min(50, obs.Narrative?.Length ?? 0))} (#{obs.Id})");
                 }
             }
 
