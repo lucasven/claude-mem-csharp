@@ -45,6 +45,7 @@ public static class SessionEndpoints
             var session = new Session
             {
                 ContentSessionId = request.ContentSessionId,
+                MemorySessionId = request.ContentSessionId,  // Use same ID for FK reference
                 Project = request.Project,
                 UserPrompt = request.Prompt,
                 StartedAt = DateTime.UtcNow
