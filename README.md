@@ -2,6 +2,18 @@
 
 A .NET 9 port of [claude-mem](https://github.com/thedotmack/claude-mem) - the persistent memory compression system for Claude Code.
 
+## Quick Start (Claude Code Plugin)
+
+```bash
+# Add marketplace and install
+/plugin marketplace add lucasven/claude-mem-csharp
+/plugin install claude-mem-csharp
+```
+
+Restart Claude Code. Context from previous sessions will automatically appear in new sessions.
+
+**Requirements:** [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) must be installed.
+
 ## Purpose
 
 This is a clean-room .NET implementation of claude-mem, created for improved stability and maintainability. The original TypeScript/Bun implementation works well but can experience stability issues on certain platforms. This .NET port provides:

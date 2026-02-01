@@ -10,4 +10,6 @@ public interface ISessionRepository
     Session? GetByMemorySessionId(string memorySessionId);
     void UpdateMemorySessionId(string contentSessionId, string memorySessionId);
     void Complete(long id);
+    void MarkComplete(long id, string reason);
+    int GetCount();
 }

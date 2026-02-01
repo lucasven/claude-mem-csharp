@@ -182,6 +182,35 @@ public static class SessionEndpoints
                 queueDepth = 0
             });
         });
+
+        /// <summary>
+        /// Mark a session as complete (SessionEnd hook).
+        /// </summary>
+        app.MapPost("/api/sessions/complete", (
+            SessionCompleteRequest request,
+            ISessionRepository sessions) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.ContentSessionId))
+            {
+                return Results.BadRequest(new { error = "contentSessionId is required" });
+            }
+
+            var session = sessions.GetByContentSessionId(request.ContentSessionId);
+            if (session == null)
+            {
+                return Results.NotFound(new { error = "Session not found" });
+            }
+
+            // Mark session as completed
+            sessions.MarkComplete(session.Id, request.Reason ?? "exit");
+
+            return Results.Ok(new
+            {
+                status = "completed",
+                sessionId = session.Id,
+                reason = request.Reason ?? "exit"
+            });
+        });
     }
 }
 
@@ -210,4 +239,10 @@ public class SummarizeRequest
 {
     public string? ContentSessionId { get; set; }
     public string? LastAssistantMessage { get; set; }
+}
+
+public class SessionCompleteRequest
+{
+    public string? ContentSessionId { get; set; }
+    public string? Reason { get; set; }
 }

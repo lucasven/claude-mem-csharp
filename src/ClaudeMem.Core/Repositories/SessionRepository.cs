@@ -83,6 +83,11 @@ public class SessionRepository : ISessionRepository
 
     public void Complete(long id)
     {
+        MarkComplete(id, "exit");
+    }
+
+    public void MarkComplete(long id, string reason)
+    {
         using var cmd = _db.Connection.CreateCommand();
         var now = DateTime.UtcNow;
         cmd.CommandText = """
@@ -94,6 +99,13 @@ public class SessionRepository : ISessionRepository
         cmd.Parameters.AddWithValue("@epoch", new DateTimeOffset(now).ToUnixTimeMilliseconds());
         cmd.Parameters.AddWithValue("@id", id);
         cmd.ExecuteNonQuery();
+    }
+
+    public int GetCount()
+    {
+        using var cmd = _db.Connection.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM sdk_sessions";
+        return Convert.ToInt32(cmd.ExecuteScalar());
     }
 
     private static Session MapSession(SqliteDataReader reader)
