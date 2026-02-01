@@ -1,4 +1,5 @@
 using ClaudeMem.Core.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ClaudeMem.Worker.Endpoints;
 
@@ -7,11 +8,11 @@ public static class SearchEndpoints
     public static void MapSearchEndpoints(this WebApplication app)
     {
         app.MapGet("/api/search", async (
-            string query,
-            string? project,
-            string? type,
-            int? limit,
-            ChromaSyncService? chromaSync) =>
+            [FromQuery] string query,
+            [FromQuery] string? project,
+            [FromQuery] string? type,
+            [FromQuery] int? limit,
+            [FromServices] ChromaSyncService? chromaSync) =>
         {
             if (chromaSync == null)
             {
@@ -64,7 +65,7 @@ public static class SearchEndpoints
             }
         });
 
-        app.MapGet("/api/search/status", async (ChromaService? chroma) =>
+        app.MapGet("/api/search/status", async ([FromServices] ChromaService? chroma) =>
         {
             if (chroma == null)
             {
