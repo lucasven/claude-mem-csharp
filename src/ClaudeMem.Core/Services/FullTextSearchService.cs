@@ -35,7 +35,7 @@ public class FullTextSearchService
         if (string.IsNullOrWhiteSpace(escapedQuery))
             return results;
 
-        using var conn = _db.GetConnection();
+        var conn = _db.GetConnection();  // Shared singleton - dont dispose
         using var cmd = conn.CreateCommand();
 
         var sql = """
@@ -109,7 +109,7 @@ public class FullTextSearchService
         if (string.IsNullOrWhiteSpace(escapedQuery))
             return results;
 
-        using var conn = _db.GetConnection();
+        var conn = _db.GetConnection();  // Shared singleton - dont dispose
         using var cmd = conn.CreateCommand();
 
         var sql = """
@@ -165,7 +165,7 @@ public class FullTextSearchService
         int depthAfter = 3,
         string? project = null)
     {
-        using var conn = _db.GetConnection();
+        var conn = _db.GetConnection();  // Shared singleton - dont dispose
         
         // Get anchor observation
         var anchor = GetObservationById(conn, anchorId);

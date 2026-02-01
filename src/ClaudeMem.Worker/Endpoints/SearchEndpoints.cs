@@ -185,7 +185,7 @@ public static class SearchEndpoints
 
             try
             {
-                using var conn = db.GetConnection();
+                var conn = db.GetConnection();  // Shared singleton - dont dispose
                 using var cmd = conn.CreateCommand();
                 
                 // Rebuild FTS index
