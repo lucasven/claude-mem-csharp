@@ -56,7 +56,6 @@ public static class HealthEndpoints
                 var searchResults = await search.SearchAsync(
                     query: project,
                     limit: 10,
-                    project: project,
                     ct: ct);
 
                 if (searchResults.Any())
@@ -64,7 +63,7 @@ public static class HealthEndpoints
                     contextParts.Add("## Recent Observations\n");
                     foreach (var result in searchResults.Take(5))
                     {
-                        contextParts.Add($"- [{result.ObservationType}] {result.Title} (#{result.ObservationId})");
+                        contextParts.Add($"- [{result.Type}] {result.Title} (#{result.ObservationId})");
                     }
                 }
             }
