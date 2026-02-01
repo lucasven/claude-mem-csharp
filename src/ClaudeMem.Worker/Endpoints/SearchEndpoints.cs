@@ -9,17 +9,16 @@ public static class SearchEndpoints
     {
         app.MapGet("/api/search", async (
             [FromQuery] string query,
-            [FromQuery] string? project,
             [FromQuery] string? type,
             [FromQuery] int? limit,
-            [FromServices] ChromaSyncService? chromaSync) =>
+            [FromServices] SemanticSearchService? searchService) =>
         {
-            if (chromaSync == null)
+            if (searchService == null)
             {
                 return Results.BadRequest(new
                 {
                     error = "Semantic search not configured",
-                    hint = "ChromaSync service is not running"
+                    hint = "Set CLAUDE_MEM_SEARCH_ENABLED=true and configure embedding provider"
                 });
             }
 
@@ -33,7 +32,7 @@ public static class SearchEndpoints
 
             try
             {
-                var results = await chromaSync.SearchAsync(
+                var results = await searchService.SearchAsync(
                     query,
                     limit ?? 10,
                     type
@@ -65,27 +64,33 @@ public static class SearchEndpoints
             }
         });
 
-        app.MapGet("/api/search/status", async ([FromServices] ChromaService? chroma) =>
+        app.MapGet("/api/search/status", async ([FromServices] SemanticSearchService? searchService) =>
         {
-            if (chroma == null)
+            if (searchService == null)
             {
                 return Results.Ok(new
                 {
                     enabled = false,
                     status = "not_configured",
-                    message = "ChromaDB integration not configured"
+                    message = "Semantic search not configured",
+                    hint = "Set CLAUDE_MEM_SEARCH_ENABLED=true"
                 });
             }
 
             try
             {
-                // Try to get any collection to verify connection
-                await chroma.StartAsync();
+                var status = await searchService.GetStatusAsync();
                 return Results.Ok(new
                 {
-                    enabled = true,
-                    status = "connected",
-                    message = "ChromaDB is running"
+                    enabled = status.Enabled,
+                    status = status.EmbeddingAvailable && status.VectorStoreAvailable ? "ready" : "degraded",
+                    embeddingProvider = status.EmbeddingProvider,
+                    embeddingAvailable = status.EmbeddingAvailable,
+                    vectorStore = status.VectorStore,
+                    vectorStoreAvailable = status.VectorStoreAvailable,
+                    collection = status.CollectionName,
+                    documentCount = status.DocumentCount,
+                    dimension = status.Dimension
                 });
             }
             catch (Exception ex)

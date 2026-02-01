@@ -179,28 +179,71 @@ SQLite database is stored at `~/.claude-mem/claude-mem.db` with:
 - WAL mode for concurrent access
 - Automatic migrations
 
-## Semantic Search (ChromaDB)
+## Semantic Search
 
-This port includes optional semantic search via ChromaDB:
-- Uses `chroma-mcp` (MCP server) for vector embeddings
-- Default embedding model: `all-MiniLM-L6-v2` (~80MB, runs on CPU)
-- Vector database stored at `~/.claude-mem/vector-db/`
+This port includes optional semantic search with pluggable backends:
 
-**Enable/disable via environment:**
+### Embedding Providers
+- **Ollama** (default): Local embeddings via Ollama API
+- More providers coming soon (OpenAI, HuggingFace)
+
+### Vector Stores
+- **SQLite** (default): Built-in, zero dependencies, good for <100k vectors
+- **Qdrant**: High-performance vector DB via HTTP API
+
+### Configuration
+
 ```bash
-# Enabled by default
-CLAUDE_MEM_CHROMA_ENABLED=true
+# Enable/disable semantic search (default: true)
+CLAUDE_MEM_SEARCH_ENABLED=true
 
-# Disable if you don't need semantic search
-CLAUDE_MEM_CHROMA_ENABLED=false
+# Embedding provider: ollama (default)
+CLAUDE_MEM_EMBEDDING_PROVIDER=ollama
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_EMBED_MODEL=nomic-embed-text
 
-# Python version for chroma-mcp (default: 3.12)
-CLAUDE_MEM_PYTHON_VERSION=3.12
+# Vector store: sqlite (default), qdrant
+CLAUDE_MEM_VECTOR_STORE=sqlite
+QDRANT_URL=http://localhost:6333
+
+# Project name for collection
+CLAUDE_MEM_PROJECT=my-project
 ```
 
-**Search endpoint:**
+### Recommended Setup
+
+**Option 1: SQLite (Zero Dependencies)**
 ```bash
+# Just works out of the box
+CLAUDE_MEM_VECTOR_STORE=sqlite
+# Note: Requires Ollama for embeddings
+```
+
+**Option 2: Ollama + SQLite (Local, Fast)**
+```bash
+# Install Ollama: https://ollama.ai
+ollama pull nomic-embed-text
+# That's it! Embeddings are local, vector store is SQLite
+```
+
+**Option 3: Ollama + Qdrant (Production)**
+```bash
+# Run Qdrant
+docker run -p 6333:6333 qdrant/qdrant
+
+# Configure
+CLAUDE_MEM_VECTOR_STORE=qdrant
+QDRANT_URL=http://localhost:6333
+```
+
+### Search API
+
+```bash
+# Search for similar observations
 curl "http://localhost:37777/api/search?query=authentication%20bug&limit=5"
+
+# Check search status
+curl "http://localhost:37777/api/search/status"
 ```
 
 ## License
