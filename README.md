@@ -157,13 +157,15 @@ CLAUDE_MEM_WORKER_PORT=37777
 # Project name for collections
 CLAUDE_MEM_PROJECT=my-project
 
-# Vector search (disabled by default - FTS5 always available)
-CLAUDE_MEM_VECTOR_ENABLED=true
+# Vector search (enabled by default with local ONNX embeddings)
+CLAUDE_MEM_VECTOR_ENABLED=true  # set to false for FTS5-only mode
 
-# OpenAI embeddings (required if vector enabled)
-CLAUDE_MEM_EMBEDDING_PROVIDER=openai
+# Embedding provider: local (default), openai
+CLAUDE_MEM_EMBEDDING_PROVIDER=local  # uses local ONNX (all-MiniLM-L6-v2)
+
+# OpenAI embeddings (only if provider=openai)
 CLAUDE_MEM_EMBEDDING_API_KEY=sk-...
-CLAUDE_MEM_EMBEDDING_MODEL=text-embedding-3-small
+CLAUDE_MEM_EMBEDDING_MODEL=text-embedding-3-small  # default for openai
 CLAUDE_MEM_EMBEDDING_BASE_URL=https://api.openai.com/v1/  # optional
 
 # Vector store: sqlite (default), qdrant
@@ -173,23 +175,33 @@ QDRANT_URL=http://localhost:6333  # if using qdrant
 
 ### Recommended Setups
 
-**Option 1: FTS5 Only (Zero Dependencies)**
+**Option 1: Local Embeddings (Default - Zero API Keys)**
 ```bash
-# No configuration needed - FTS5 search works out of the box
-# Great for keyword search, code symbols, exact matches
+# No configuration needed!
+# Hybrid search (FTS5 + Vector) works out of the box
+# Uses local ONNX model (all-MiniLM-L6-v2, same as Transformers.js)
+# ~90MB model auto-downloaded on first use
+# Cross-platform: Windows, Linux, macOS, ARM
 ```
 
-**Option 2: Hybrid with OpenAI (Best Quality)**
+**Option 2: FTS5 Only (Fastest, Smallest)**
 ```bash
-CLAUDE_MEM_VECTOR_ENABLED=true
+CLAUDE_MEM_VECTOR_ENABLED=false
+# Only keyword search, no semantic vectors
+# Great for exact matches, code symbols, IDs
+```
+
+**Option 3: Hybrid with OpenAI (Best Semantic Quality)**
+```bash
+CLAUDE_MEM_EMBEDDING_PROVIDER=openai
 CLAUDE_MEM_EMBEDDING_API_KEY=sk-your-openai-key
-# Uses OpenAI text-embedding-3-small + SQLite vector store
-# Best semantic understanding
+# Uses OpenAI text-embedding-3-small (1536 dimensions)
+# Best for nuanced semantic understanding
 ```
 
-**Option 3: Hybrid with OpenRouter (Cost Effective)**
+**Option 4: Hybrid with OpenRouter (Cost Effective)**
 ```bash
-CLAUDE_MEM_VECTOR_ENABLED=true
+CLAUDE_MEM_EMBEDDING_PROVIDER=openai
 CLAUDE_MEM_EMBEDDING_API_KEY=sk-or-your-openrouter-key
 CLAUDE_MEM_EMBEDDING_BASE_URL=https://openrouter.ai/api/v1/
 CLAUDE_MEM_EMBEDDING_MODEL=openai/text-embedding-3-small
