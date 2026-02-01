@@ -28,6 +28,8 @@ claude-mem-csharp/
 ## Requirements
 
 - [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- Python 3.10+ (for ChromaDB semantic search)
+- [uv](https://docs.astral.sh/uv/) package manager (optional, for running chroma-mcp)
 
 ## Building
 
@@ -175,8 +177,31 @@ curl http://localhost:37777/api/stats
 
 SQLite database is stored at `~/.claude-mem/claude-mem.db` with:
 - WAL mode for concurrent access
-- FTS5 full-text search (planned)
 - Automatic migrations
+
+## Semantic Search (ChromaDB)
+
+This port includes optional semantic search via ChromaDB:
+- Uses `chroma-mcp` (MCP server) for vector embeddings
+- Default embedding model: `all-MiniLM-L6-v2` (~80MB, runs on CPU)
+- Vector database stored at `~/.claude-mem/vector-db/`
+
+**Enable/disable via environment:**
+```bash
+# Enabled by default
+CLAUDE_MEM_CHROMA_ENABLED=true
+
+# Disable if you don't need semantic search
+CLAUDE_MEM_CHROMA_ENABLED=false
+
+# Python version for chroma-mcp (default: 3.12)
+CLAUDE_MEM_PYTHON_VERSION=3.12
+```
+
+**Search endpoint:**
+```bash
+curl "http://localhost:37777/api/search?query=authentication%20bug&limit=5"
+```
 
 ## License
 
