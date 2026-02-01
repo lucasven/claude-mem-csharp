@@ -165,7 +165,7 @@ public static class SessionEndpoints
                 CreatedAt = DateTime.UtcNow
             };
 
-            var summaryId = summaries.Create(summary);
+            var summaryId = summaries.Store(summary);
 
             return Results.Ok(new
             {

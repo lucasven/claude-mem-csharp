@@ -30,6 +30,20 @@ public class ClaudeMemDatabase : IDisposable
 
     public SqliteConnection Connection => _connection;
 
+    /// <summary>
+    /// Get the database connection (for services that need direct access).
+    /// </summary>
+    public SqliteConnection GetConnection() => _connection;
+
+    /// <summary>
+    /// Run database migrations. Called automatically on construction,
+    /// but exposed publicly for explicit migration control.
+    /// </summary>
+    public void Migrate()
+    {
+        RunMigrations();
+    }
+
     private void ConfigurePragmas()
     {
         ExecuteNonQuery("PRAGMA journal_mode = WAL");
