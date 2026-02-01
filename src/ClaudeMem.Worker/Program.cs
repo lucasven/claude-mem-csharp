@@ -21,35 +21,35 @@ builder.Services.AddSingleton<ISummaryRepository, SummaryRepository>();
 builder.Services.AddSingleton<FullTextSearchService>();
 
 // Configure vector search if enabled
-var vectorEnabled = Environment.GetEnvironmentVariable("CLAUDE_MEM_VECTOR_ENABLED") == "true";
+var vectorEnabled = Environment.GetEnvironmentVariable("CLAUDE_MEM_VECTOR_ENABLED") != "false"; // Default: enabled
 var project = Environment.GetEnvironmentVariable("CLAUDE_MEM_PROJECT") ?? "default";
 
 if (vectorEnabled)
 {
     // Configure embedding provider
-    var embeddingProvider = Environment.GetEnvironmentVariable("CLAUDE_MEM_EMBEDDING_PROVIDER") ?? "openai";
+    // Default to "local" (ONNX) - no API key required
+    var embeddingProvider = Environment.GetEnvironmentVariable("CLAUDE_MEM_EMBEDDING_PROVIDER") ?? "local";
     var embeddingApiKey = Environment.GetEnvironmentVariable("CLAUDE_MEM_EMBEDDING_API_KEY") 
         ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-    var embeddingModel = Environment.GetEnvironmentVariable("CLAUDE_MEM_EMBEDDING_MODEL") ?? "text-embedding-3-small";
+    var embeddingModel = Environment.GetEnvironmentVariable("CLAUDE_MEM_EMBEDDING_MODEL");
     var embeddingBaseUrl = Environment.GetEnvironmentVariable("CLAUDE_MEM_EMBEDDING_BASE_URL");
 
-    if (!string.IsNullOrEmpty(embeddingApiKey))
+    builder.Services.AddSingleton<IEmbeddingProvider>(sp => embeddingProvider switch
     {
-        builder.Services.AddSingleton<IEmbeddingProvider>(sp => embeddingProvider switch
-        {
-            "openai" => new OpenAIEmbeddingProvider(embeddingApiKey, embeddingModel, embeddingBaseUrl),
-            _ => new OpenAIEmbeddingProvider(embeddingApiKey, embeddingModel, embeddingBaseUrl)
-        });
+        "local" or "onnx" => new LocalOnnxEmbeddingProvider(),
+        "openai" when !string.IsNullOrEmpty(embeddingApiKey) => 
+            new OpenAIEmbeddingProvider(embeddingApiKey, embeddingModel ?? "text-embedding-3-small", embeddingBaseUrl),
+        _ => new LocalOnnxEmbeddingProvider() // Default fallback to local
+    });
 
-        // Configure vector store
-        var vectorStore = Environment.GetEnvironmentVariable("CLAUDE_MEM_VECTOR_STORE") ?? "sqlite";
-        builder.Services.AddSingleton<IVectorStore>(sp => vectorStore switch
-        {
-            "qdrant" => new QdrantVectorStore(),
-            "sqlite" => new SqliteVectorStore(),
-            _ => new SqliteVectorStore()
-        });
-    }
+    // Configure vector store
+    var vectorStore = Environment.GetEnvironmentVariable("CLAUDE_MEM_VECTOR_STORE") ?? "sqlite";
+    builder.Services.AddSingleton<IVectorStore>(sp => vectorStore switch
+    {
+        "qdrant" => new QdrantVectorStore(),
+        "sqlite" => new SqliteVectorStore(),
+        _ => new SqliteVectorStore()
+    });
 }
 
 // Register hybrid search service
