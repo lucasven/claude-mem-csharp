@@ -1,0 +1,17 @@
+{
+  "name": "claude-mem-csharp",
+  "version": "1.0.0",
+  "description": "Persistent memory compression system for Claude Code (.NET port) - context compression across sessions",
+  "author": {
+    "name": "Lucas Venturella"
+  },
+  "repository": "https://github.com/lucasven/claude-mem-csharp",
+  "license": "AGPL-3.0",
+  "keywords": [
+    "memory",
+    "context",
+    "persistence",
+    "hooks",
+    "dotnet"
+  ]
+}
