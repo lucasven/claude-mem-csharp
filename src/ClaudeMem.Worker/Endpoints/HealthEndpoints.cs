@@ -17,37 +17,37 @@ public static class HealthEndpoints
             var sessionCount = sessions.GetCount();
             var uptime = TimeSpan.FromMilliseconds(Environment.TickCount64);
             
-            var html = $"""
+            var html = $$"""
             <!DOCTYPE html>
             <html>
             <head>
                 <title>Claude-Mem C# Worker</title>
                 <style>
-                    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-                           max-width: 800px; margin: 50px auto; padding: 20px; background: #1a1a2e; color: #eee; }}
-                    h1 {{ color: #00d9ff; }}
-                    .status {{ background: #16213e; padding: 20px; border-radius: 8px; margin: 20px 0; }}
-                    .stat {{ display: inline-block; margin: 10px 20px; text-align: center; }}
-                    .stat-value {{ font-size: 2em; color: #00d9ff; }}
-                    .stat-label {{ color: #888; }}
-                    .endpoint {{ background: #0f3460; padding: 10px; margin: 5px 0; border-radius: 4px; font-family: monospace; }}
-                    .healthy {{ color: #00ff88; }}
-                    a {{ color: #00d9ff; }}
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+                           max-width: 800px; margin: 50px auto; padding: 20px; background: #1a1a2e; color: #eee; }
+                    h1 { color: #00d9ff; }
+                    .status { background: #16213e; padding: 20px; border-radius: 8px; margin: 20px 0; }
+                    .stat { display: inline-block; margin: 10px 20px; text-align: center; }
+                    .stat-value { font-size: 2em; color: #00d9ff; }
+                    .stat-label { color: #888; }
+                    .endpoint { background: #0f3460; padding: 10px; margin: 5px 0; border-radius: 4px; font-family: monospace; }
+                    .healthy { color: #00ff88; }
+                    a { color: #00d9ff; }
                 </style>
             </head>
             <body>
                 <h1>🧠 Claude-Mem C# Worker</h1>
                 <div class="status">
-                    <span class="healthy">● Healthy</span> | Port: {port} | Uptime: {uptime.Hours}h {uptime.Minutes}m
+                    <span class="healthy">● Healthy</span> | Port: {{port}} | Uptime: {{uptime.Hours}}h {{uptime.Minutes}}m
                 </div>
                 
                 <div class="status">
                     <div class="stat">
-                        <div class="stat-value">{obsCount}</div>
+                        <div class="stat-value">{{obsCount}}</div>
                         <div class="stat-label">Observations</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">{sessionCount}</div>
+                        <div class="stat-value">{{sessionCount}}</div>
                         <div class="stat-label">Sessions</div>
                     </div>
                 </div>
@@ -57,7 +57,7 @@ public static class HealthEndpoints
                 <div class="endpoint">GET <a href="/api/stats">/api/stats</a> - Worker statistics</div>
                 <div class="endpoint">GET /api/search?query=... - Hybrid search</div>
                 <div class="endpoint">GET /api/observations - List observations</div>
-                <div class="endpoint">GET /api/observation/{{id}} - Get observation by ID</div>
+                <div class="endpoint">GET /api/observation/:id - Get observation by ID</div>
                 <div class="endpoint">POST /api/sessions/init - Initialize session</div>
                 <div class="endpoint">POST /api/sessions/observations - Store observation</div>
                 
