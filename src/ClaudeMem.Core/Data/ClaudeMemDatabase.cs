@@ -14,11 +14,18 @@ public class ClaudeMemDatabase : IDisposable
         {
             var dataDir = GetDataDirectory();
             Directory.CreateDirectory(dataDir);
-            connectionString = $"Data Source={Path.Combine(dataDir, "claude-mem.db")}";
+            _dbPath = Path.Combine(dataDir, "claude-mem.db");
+            connectionString = $"Data Source={_dbPath}";
         }
         else if (connectionString == ":memory:")
         {
+            _dbPath = ":memory:";
             connectionString = "Data Source=:memory:";
+        }
+        else
+        {
+            // Extract path from connection string
+            _dbPath = connectionString.Replace("Data Source=", "");
         }
 
         _connection = new SqliteConnection(connectionString);
@@ -29,6 +36,13 @@ public class ClaudeMemDatabase : IDisposable
     }
 
     public SqliteConnection Connection => _connection;
+    
+    private readonly string _dbPath;
+
+    /// <summary>
+    /// Get the path to the database file.
+    /// </summary>
+    public string GetDatabasePath() => _dbPath;
 
     /// <summary>
     /// Get the database connection (for services that need direct access).
