@@ -5,19 +5,19 @@
       "matcher": "startup|clear|compact",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/scripts/context-hook.sh",
+        "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/scripts/context-hook.ps1\"",
         "timeout": 300,
         "statusMessage": "Loading memory context..."
       }, {
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/scripts/user-message-hook.sh",
+        "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/scripts/user-message-hook.ps1\"",
         "timeout": 10
       }]
     }],
     "UserPromptSubmit": [{
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/scripts/new-hook.sh",
+        "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/scripts/new-hook.ps1\"",
         "timeout": 120
       }]
     }],
@@ -25,21 +25,21 @@
       "matcher": "*",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/scripts/save-hook.sh",
+        "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/scripts/save-hook.ps1\"",
         "timeout": 120
       }]
     }],
     "Stop": [{
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/scripts/summary-hook.sh",
+        "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/scripts/summary-hook.ps1\"",
         "timeout": 120
       }]
     }],
     "SessionEnd": [{
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-hook.sh",
+        "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-hook.ps1\"",
         "timeout": 120
       }]
     }]
