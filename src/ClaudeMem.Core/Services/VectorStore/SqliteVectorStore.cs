@@ -18,7 +18,7 @@ public class SqliteVectorStore : IVectorStore, IDisposable
     {
         _dbPath = dbPath ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".claude-mem",
+            ".claude-mem-csharp",
             "vectors.db"
         );
 

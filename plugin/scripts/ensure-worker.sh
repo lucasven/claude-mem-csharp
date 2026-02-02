@@ -7,11 +7,11 @@ set -e
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
 WORKER_PORT="${CLAUDE_MEM_WORKER_PORT:-37777}"
 WORKER_URL="http://127.0.0.1:${WORKER_PORT}"
-PID_FILE="${HOME}/.claude-mem/worker.pid"
-LOG_FILE="${HOME}/.claude-mem/worker.log"
+PID_FILE="${HOME}/.claude-mem-csharp/worker.pid"
+LOG_FILE="${HOME}/.claude-mem-csharp/worker.log"
 
 # Create data directory
-mkdir -p "${HOME}/.claude-mem"
+mkdir -p "${HOME}/.claude-mem-csharp"
 
 # Check if worker is already running
 check_worker() {

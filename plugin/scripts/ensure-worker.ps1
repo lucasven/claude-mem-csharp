@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 $PluginRoot = if ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { Split-Path -Parent (Split-Path -Parent $PSScriptRoot) }
 $WorkerPort = if ($env:CLAUDE_MEM_WORKER_PORT) { $env:CLAUDE_MEM_WORKER_PORT } else { "37777" }
 $WorkerUrl = "http://127.0.0.1:$WorkerPort"
-$DataDir = Join-Path $env:USERPROFILE ".claude-mem"
+$DataDir = Join-Path $env:USERPROFILE ".claude-mem-csharp"
 $PidFile = Join-Path $DataDir "worker.pid"
 $LogFile = Join-Path $DataDir "worker.log"
 

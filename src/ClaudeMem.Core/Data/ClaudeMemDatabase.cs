@@ -90,7 +90,7 @@ public class ClaudeMemDatabase : IDisposable
     private static string GetDataDirectory()
     {
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return Path.Combine(home, ".claude-mem");
+        return Path.Combine(home, ".claude-mem-csharp");
     }
 
     public void Dispose()
