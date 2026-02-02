@@ -8,4 +8,5 @@ public interface ISummaryRepository
     Summary? GetById(long id);
     Summary? GetByMemorySessionId(string memorySessionId);
     List<Summary> GetRecent(int limit = 20, int offset = 0, string? project = null);
+    long GetCount();
 }

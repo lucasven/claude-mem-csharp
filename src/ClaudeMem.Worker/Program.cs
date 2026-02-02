@@ -4,6 +4,8 @@ using ClaudeMem.Core.Services;
 using ClaudeMem.Core.Services.Embeddings;
 using ClaudeMem.Core.Services.VectorStore;
 using ClaudeMem.Worker.Endpoints;
+using ClaudeMem.Worker.Services;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +18,10 @@ builder.Services.AddSingleton<ClaudeMemDatabase>();
 builder.Services.AddSingleton<IObservationRepository, ObservationRepository>();
 builder.Services.AddSingleton<ISessionRepository, SessionRepository>();
 builder.Services.AddSingleton<ISummaryRepository, SummaryRepository>();
+builder.Services.AddSingleton<IUserPromptRepository, UserPromptRepository>();
+
+// Register SSE broadcaster for viewer UI
+builder.Services.AddSingleton<SSEBroadcaster>();
 
 // Register FTS5 search (always available)
 builder.Services.AddSingleton<FullTextSearchService>();
@@ -97,12 +103,27 @@ if (hybridSearch != null)
     });
 }
 
+// Serve static files from ui directory (for viewer assets)
+var uiPath = Path.Combine(AppContext.BaseDirectory, "ui");
+if (Directory.Exists(uiPath))
+{
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(uiPath),
+        RequestPath = ""
+    });
+}
+
 // Map endpoints
 app.MapHealthEndpoints();
 app.MapObservationEndpoints();
 app.MapSessionEndpoints();
 app.MapSearchEndpoints();
 app.MapTimelineEndpoints();
+app.MapSummaryEndpoints();
+app.MapPromptEndpoints();
+app.MapMetadataEndpoints();
+app.MapViewerEndpoints();
 
 Console.WriteLine($"[Worker] Starting on port {port}...");
 app.Run();

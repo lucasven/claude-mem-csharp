@@ -90,6 +90,13 @@ public class SummaryRepository : ISummaryRepository
         return results;
     }
 
+    public long GetCount()
+    {
+        using var cmd = _db.Connection.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM session_summaries";
+        return (long)(cmd.ExecuteScalar() ?? 0);
+    }
+
     private static Summary MapSummary(SqliteDataReader reader)
     {
         return new Summary
