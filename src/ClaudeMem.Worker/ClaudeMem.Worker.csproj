@@ -15,9 +15,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Update="ui\**\*">
+    <Content Include="ui\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    </Content>
   </ItemGroup>
 
 </Project>
