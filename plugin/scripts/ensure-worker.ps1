@@ -48,8 +48,9 @@ function Start-Worker {
     
     # Start worker in background
     $workerProject = Join-Path $PluginRoot "src\ClaudeMem.Worker"
+    $ErrorLog = Join-Path $DataDir "worker-error.log"
     $job = Start-Process -FilePath "dotnet" -ArgumentList "run", "--project", $workerProject, "-c", "Release", "--no-build" `
-        -WindowStyle Hidden -PassThru -RedirectStandardOutput $LogFile -RedirectStandardError $LogFile
+        -WindowStyle Hidden -PassThru -RedirectStandardOutput $LogFile -RedirectStandardError $ErrorLog
     
     $job.Id | Out-File -FilePath $PidFile -Encoding ASCII
     
