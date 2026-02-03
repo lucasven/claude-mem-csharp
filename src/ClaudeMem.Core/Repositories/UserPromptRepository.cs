@@ -62,6 +62,43 @@ public class UserPromptRepository : IUserPromptRepository
         return (long)(cmd.ExecuteScalar() ?? 0);
     }
 
+    public long Store(UserPrompt prompt)
+    {
+        using var cmd = _db.Connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO user_prompts (
+                content_session_id, project, prompt_number, prompt_text, 
+                memory_session_id, created_at, created_at_epoch
+            ) VALUES (
+                @contentSessionId, @project, @promptNumber, @promptText,
+                @memorySessionId, @createdAt, @createdAtEpoch
+            )
+            """;
+
+        var now = DateTime.UtcNow;
+        cmd.Parameters.AddWithValue("@contentSessionId", prompt.ContentSessionId);
+        cmd.Parameters.AddWithValue("@project", prompt.Project);
+        cmd.Parameters.AddWithValue("@promptNumber", prompt.PromptNumber);
+        cmd.Parameters.AddWithValue("@promptText", prompt.PromptText);
+        cmd.Parameters.AddWithValue("@memorySessionId", (object?)prompt.MemorySessionId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@createdAt", now.ToString("o"));
+        cmd.Parameters.AddWithValue("@createdAtEpoch", new DateTimeOffset(now).ToUnixTimeMilliseconds());
+
+        cmd.ExecuteNonQuery();
+
+        using var idCmd = _db.Connection.CreateCommand();
+        idCmd.CommandText = "SELECT last_insert_rowid()";
+        return (long)(idCmd.ExecuteScalar() ?? 0);
+    }
+
+    public int GetNextPromptNumber(string contentSessionId)
+    {
+        using var cmd = _db.Connection.CreateCommand();
+        cmd.CommandText = "SELECT COALESCE(MAX(prompt_number), 0) + 1 FROM user_prompts WHERE content_session_id = @sessionId";
+        cmd.Parameters.AddWithValue("@sessionId", contentSessionId);
+        return Convert.ToInt32(cmd.ExecuteScalar());
+    }
+
     private static UserPrompt MapPrompt(SqliteDataReader reader)
     {
         return new UserPrompt

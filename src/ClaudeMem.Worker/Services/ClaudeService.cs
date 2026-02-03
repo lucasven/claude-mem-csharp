@@ -1,17 +1,29 @@
+using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using ClaudeMem.Core.Models;
-using Claude.AgentSdk;
-using ClaudeApi = Claude.AgentSdk.Claude;
 
 namespace ClaudeMem.Worker.Services;
 
+/// <summary>
+/// LLM service for observation extraction and session summarization.
+/// Supports Anthropic Claude API (preferred) or OpenAI API (fallback).
+/// </summary>
 public class ClaudeService : IClaudeService
 {
+    private static readonly HttpClient HttpClient = new() { Timeout = TimeSpan.FromSeconds(60) };
+    
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = false,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
     };
+
+    private readonly string? _anthropicApiKey;
+    private readonly string? _openAiApiKey;
+    private readonly string _provider;
+    private readonly string _model;
 
     private const string ObservationSystemPrompt = """
         You are an observation extractor for a coding memory system. Given a tool interaction from a Claude Code session,
@@ -56,6 +68,34 @@ public class ClaudeService : IClaudeService
         All fields are optional - only include fields that have meaningful content.
         """;
 
+    public ClaudeService()
+    {
+        _anthropicApiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+        _openAiApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+
+        // Determine provider and model
+        if (!string.IsNullOrEmpty(_anthropicApiKey))
+        {
+            _provider = "anthropic";
+            _model = Environment.GetEnvironmentVariable("CLAUDE_MEM_LLM_MODEL") ?? "claude-3-5-haiku-20241022";
+            Console.WriteLine($"[ClaudeService] Using Anthropic API with model: {_model}");
+        }
+        else if (!string.IsNullOrEmpty(_openAiApiKey))
+        {
+            _provider = "openai";
+            _model = Environment.GetEnvironmentVariable("CLAUDE_MEM_LLM_MODEL") ?? "gpt-4o-mini";
+            Console.WriteLine($"[ClaudeService] Using OpenAI API with model: {_model}");
+        }
+        else
+        {
+            _provider = "none";
+            _model = "";
+            Console.WriteLine("[ClaudeService] No API key found (ANTHROPIC_API_KEY or OPENAI_API_KEY). LLM features disabled.");
+        }
+    }
+
+    public bool IsAvailable => _provider != "none";
+
     public async Task<Observation?> ExtractObservationAsync(
         string sessionId,
         string project,
@@ -64,23 +104,24 @@ public class ClaudeService : IClaudeService
         object? toolResponse,
         CancellationToken cancellationToken = default)
     {
+        if (!IsAvailable)
+            return null;
+
         var prompt = $"""
             Tool: {toolName}
             Input: {SerializeObject(toolInput)}
             Response: {SerializeObject(toolResponse)}
             """;
 
-        var options = ClaudeApi.Options()
-            .SystemPrompt(ObservationSystemPrompt)
-            .MaxTurns(1)
-            .Build();
-
-        var response = await GetResponseTextAsync(prompt, options, cancellationToken);
-        if (string.IsNullOrWhiteSpace(response))
-            return null;
-
         try
         {
+            var response = await CallLlmAsync(ObservationSystemPrompt, prompt, cancellationToken);
+            if (string.IsNullOrWhiteSpace(response))
+                return null;
+
+            // Extract JSON from response (handle markdown code blocks)
+            response = ExtractJson(response);
+            
             var result = JsonSerializer.Deserialize<ObservationExtraction>(response, JsonOptions);
             if (result == null || !result.ShouldCreate)
                 return null;
@@ -101,8 +142,9 @@ public class ClaudeService : IClaudeService
                 CreatedAt = DateTime.UtcNow
             };
         }
-        catch (JsonException)
+        catch (Exception ex)
         {
+            Console.WriteLine($"[ClaudeService] ExtractObservation failed: {ex.Message}");
             return null;
         }
     }
@@ -113,6 +155,9 @@ public class ClaudeService : IClaudeService
         string? lastAssistantMessage,
         CancellationToken cancellationToken = default)
     {
+        if (!IsAvailable)
+            return null;
+
         var observationList = observations.ToList();
         if (observationList.Count == 0)
             return null;
@@ -133,45 +178,125 @@ public class ClaudeService : IClaudeService
             {(lastAssistantMessage != null ? $"Last assistant message:\n{lastAssistantMessage}" : "")}
             """;
 
-        var options = ClaudeApi.Options()
-            .SystemPrompt(SummarySystemPrompt)
-            .MaxTurns(1)
-            .Build();
-
-        var response = await GetResponseTextAsync(prompt, options, cancellationToken);
-        if (string.IsNullOrWhiteSpace(response))
-            return null;
-
         try
         {
+            var response = await CallLlmAsync(SummarySystemPrompt, prompt, cancellationToken);
+            if (string.IsNullOrWhiteSpace(response))
+                return null;
+
+            // Extract JSON from response
+            response = ExtractJson(response);
+            
             return JsonSerializer.Deserialize<SummaryExtraction>(response, JsonOptions);
         }
-        catch (JsonException)
+        catch (Exception ex)
         {
+            Console.WriteLine($"[ClaudeService] GenerateSummary failed: {ex.Message}");
             return null;
         }
     }
 
-    private static async Task<string> GetResponseTextAsync(
-        string prompt,
-        ClaudeAgentOptions options,
-        CancellationToken cancellationToken)
+    private async Task<string> CallLlmAsync(string systemPrompt, string userPrompt, CancellationToken cancellationToken)
     {
-        var responseText = new System.Text.StringBuilder();
-
-        await foreach (var message in ClaudeApi.QueryAsync(prompt, options, cancellationToken: cancellationToken))
+        return _provider switch
         {
-            if (message is AssistantMessage am)
+            "anthropic" => await CallAnthropicAsync(systemPrompt, userPrompt, cancellationToken),
+            "openai" => await CallOpenAiAsync(systemPrompt, userPrompt, cancellationToken),
+            _ => throw new InvalidOperationException("No LLM provider configured")
+        };
+    }
+
+    private async Task<string> CallAnthropicAsync(string systemPrompt, string userPrompt, CancellationToken cancellationToken)
+    {
+        var request = new
+        {
+            model = _model,
+            max_tokens = 1024,
+            system = systemPrompt,
+            messages = new[]
             {
-                foreach (var block in am.Content)
-                {
-                    if (block is TextBlock tb)
-                        responseText.Append(tb.Text);
-                }
+                new { role = "user", content = userPrompt }
             }
+        };
+
+        var json = JsonSerializer.Serialize(request, JsonOptions);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
+        httpRequest.Headers.Add("x-api-key", _anthropicApiKey);
+        httpRequest.Headers.Add("anthropic-version", "2023-06-01");
+        httpRequest.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var response = await HttpClient.SendAsync(httpRequest, cancellationToken);
+        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"Anthropic API error: {response.StatusCode} - {responseContent}");
         }
 
-        return responseText.ToString().Trim();
+        using var doc = JsonDocument.Parse(responseContent);
+        var content = doc.RootElement.GetProperty("content");
+        if (content.GetArrayLength() > 0)
+        {
+            var textBlock = content[0];
+            if (textBlock.TryGetProperty("text", out var text))
+                return text.GetString() ?? "";
+        }
+
+        return "";
+    }
+
+    private async Task<string> CallOpenAiAsync(string systemPrompt, string userPrompt, CancellationToken cancellationToken)
+    {
+        var request = new
+        {
+            model = _model,
+            max_tokens = 1024,
+            messages = new object[]
+            {
+                new { role = "system", content = systemPrompt },
+                new { role = "user", content = userPrompt }
+            }
+        };
+
+        var json = JsonSerializer.Serialize(request, JsonOptions);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _openAiApiKey);
+        httpRequest.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var response = await HttpClient.SendAsync(httpRequest, cancellationToken);
+        var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"OpenAI API error: {response.StatusCode} - {responseContent}");
+        }
+
+        using var doc = JsonDocument.Parse(responseContent);
+        var choices = doc.RootElement.GetProperty("choices");
+        if (choices.GetArrayLength() > 0)
+        {
+            var message = choices[0].GetProperty("message");
+            if (message.TryGetProperty("content", out var content))
+                return content.GetString() ?? "";
+        }
+
+        return "";
+    }
+
+    private static string ExtractJson(string response)
+    {
+        // Handle markdown code blocks
+        response = response.Trim();
+        
+        if (response.StartsWith("```json"))
+            response = response[7..];
+        else if (response.StartsWith("```"))
+            response = response[3..];
+            
+        if (response.EndsWith("```"))
+            response = response[..^3];
+            
+        return response.Trim();
     }
 
     private static string SerializeObject(object? obj)
@@ -179,7 +304,11 @@ public class ClaudeService : IClaudeService
         if (obj == null) return "null";
         try
         {
-            return JsonSerializer.Serialize(obj, JsonOptions);
+            // Limit response size to avoid huge payloads
+            var serialized = JsonSerializer.Serialize(obj, JsonOptions);
+            if (serialized.Length > 4000)
+                return serialized[..4000] + "... (truncated)";
+            return serialized;
         }
         catch
         {
