@@ -27,7 +27,8 @@ $inputData = $inputJson | ConvertFrom-Json
 $sessionId = $inputData.session_id
 $cwd = if ($inputData.cwd) { $inputData.cwd } else { "." }
 $toolName = if ($inputData.tool_name) { $inputData.tool_name } else { "" }
-$toolInput = if ($inputData.tool_input) { $inputData.tool_input | ConvertTo-Json -Compress -Depth 5 } else { "{}" }
+$inputObj = $inputData.tool_input
+$toolInput = if ($inputObj) { $inputObj | ConvertTo-Json -Compress -Depth 5 } else { "{}" }
 $toolResponse = if ($inputData.tool_response) { 
     $resp = $inputData.tool_response
     if ($resp -is [string]) { $resp } else { $resp | ConvertTo-Json -Compress -Depth 5 }
@@ -50,33 +51,69 @@ if ($SkipTools -contains $toolName -or $toolName -match "mcp__") {
     exit 0
 }
 
-# Determine observation type
-$obsType = switch -Regex ($toolName) {
-    "Read|Grep|Glob|Search" { "discovery" }
-    "Write|Edit|apply_patch" { "modification" }
-    "Bash|exec|process" { "action" }
-    default { "observation" }
+# Determine observation type and extract files
+$obsType = "observation"
+$filesRead = @()
+$filesModified = @()
+
+switch -Regex ($toolName) {
+    "Read|Grep|Glob|Search|List" { 
+        $obsType = "discovery"
+        # Extract file path from input
+        if ($inputObj.file_path) { $filesRead += $inputObj.file_path }
+        if ($inputObj.path) { $filesRead += $inputObj.path }
+        if ($inputObj.paths) { $filesRead += $inputObj.paths }
+    }
+    "Write|Edit|apply_patch|Create" { 
+        $obsType = "modification"
+        # Extract file path from input
+        if ($inputObj.file_path) { $filesModified += $inputObj.file_path }
+        if ($inputObj.path) { $filesModified += $inputObj.path }
+    }
+    "Bash|exec|process" { 
+        $obsType = "action"
+    }
+    "Task|TodoRead|Analyze|Think" {
+        $obsType = "decision"
+    }
 }
 
 # Generate title
 $title = $toolName
-$inputObj = $inputData.tool_input
-if ($toolName -eq "Read" -and $inputObj.file_path) { $title = "Read: $($inputObj.file_path)" }
-elseif ($toolName -eq "Read" -and $inputObj.path) { $title = "Read: $($inputObj.path)" }
-elseif ($toolName -eq "Write" -and $inputObj.file_path) { $title = "Write: $($inputObj.file_path)" }
-elseif ($toolName -eq "Write" -and $inputObj.path) { $title = "Write: $($inputObj.path)" }
+if ($toolName -eq "Read" -and ($inputObj.file_path -or $inputObj.path)) { 
+    $filePath = if ($inputObj.file_path) { $inputObj.file_path } else { $inputObj.path }
+    $title = "Read: $filePath"
+}
+elseif ($toolName -eq "Write" -and ($inputObj.file_path -or $inputObj.path)) { 
+    $filePath = if ($inputObj.file_path) { $inputObj.file_path } else { $inputObj.path }
+    $title = "Write: $filePath"
+}
+elseif ($toolName -eq "Edit" -and ($inputObj.file_path -or $inputObj.path)) { 
+    $filePath = if ($inputObj.file_path) { $inputObj.file_path } else { $inputObj.path }
+    $title = "Edit: $filePath"
+}
 elseif ($toolName -eq "Bash" -and $inputObj.command) { 
-    $cmdPreview = $inputObj.command.Substring(0, [Math]::Min(50, $inputObj.command.Length))
-    $title = "Bash: $cmdPreview" 
+    $cmdPreview = $inputObj.command
+    if ($cmdPreview.Length -gt 50) { $cmdPreview = $cmdPreview.Substring(0, 50) + "..." }
+    $title = "Bash: $cmdPreview"
+}
+elseif ($toolName -eq "Glob" -and $inputObj.pattern) {
+    $title = "Glob: $($inputObj.pattern)"
+}
+elseif ($toolName -eq "Grep" -and $inputObj.pattern) {
+    $title = "Grep: $($inputObj.pattern)"
 }
 
-Write-Log "Title: $title, Type: $obsType"
+Write-Log "Title: $title, Type: $obsType, FilesRead: $($filesRead -join ','), FilesModified: $($filesModified -join ',')"
 
 # Truncate response
 if ($toolResponse.Length -gt 10240) {
     $toolResponse = $toolResponse.Substring(0, 10240)
     Write-Log "Response truncated to 10KB"
 }
+
+# Estimate discovery tokens (rough: 4 chars per token)
+$discoveryTokens = [int]([Math]::Ceiling($toolResponse.Length / 4))
 
 # HTTP POST (synchronous for debugging)
 try {
@@ -87,6 +124,9 @@ try {
         toolResponse = $toolResponse
         title = $title
         observationType = $obsType
+        filesRead = $filesRead
+        filesModified = $filesModified
+        discoveryTokens = $discoveryTokens
     } | ConvertTo-Json -Depth 5
     
     Write-Log "POST $WorkerUrl/api/sessions/observations"

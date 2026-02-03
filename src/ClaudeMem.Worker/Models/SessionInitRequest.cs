@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace ClaudeMem.Worker.Models;
 
 /// <summary>
@@ -15,13 +17,6 @@ public record SessionInitRequest(
 /// <summary>
 /// Request to queue an observation for memory storage.
 /// </summary>
-/// <param name="ContentSessionId">Session identifier (required)</param>
-/// <param name="ToolName">Name of the tool that generated this observation</param>
-/// <param name="ToolInput">Input provided to the tool</param>
-/// <param name="ToolResponse">Response from the tool</param>
-/// <param name="Cwd">Current working directory</param>
-/// <param name="Title">Optional title for the observation</param>
-/// <param name="ObservationType">Type of observation (discovery, modification, action, observation)</param>
 public record ObservationRequest(
     string? ContentSessionId,
     string? ToolName,
@@ -29,7 +24,14 @@ public record ObservationRequest(
     object? ToolResponse,
     string? Cwd,
     string? Title,
-    string? ObservationType
+    string? ObservationType,
+    string? Narrative,
+    List<string>? Facts,
+    List<string>? Concepts,
+    List<string>? FilesRead,
+    List<string>? FilesModified,
+    int? PromptNumber,
+    int? DiscoveryTokens
 );
 
 /// <summary>

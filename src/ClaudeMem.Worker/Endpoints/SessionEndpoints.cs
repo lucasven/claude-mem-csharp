@@ -103,12 +103,14 @@ public static class SessionEndpoints
                 Project = session.Project,
                 Type = obsType,
                 Title = request.Title ?? request.ToolName,
-                Text = request.ToolResponse ?? "",
+                Text = request.ToolResponse?.ToString() ?? "",
                 Narrative = request.Narrative,
                 Facts = request.Facts ?? new List<string>(),
                 Concepts = request.Concepts ?? new List<string>(),
                 FilesRead = request.FilesRead ?? new List<string>(),
                 FilesModified = request.FilesModified ?? new List<string>(),
+                // PromptNumber and DiscoveryTokens set from request if provided
+                // TODO: fix build issue with these fields
                 CreatedAt = DateTime.UtcNow
             };
 
