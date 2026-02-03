@@ -7,13 +7,15 @@ namespace ClaudeMem.Worker.Services;
 
 public class ClaudeService : IClaudeService
 {
+    private static string? _cliPath;
+    
     static ClaudeService()
     {
-        // Log auth context on startup
-        LogAuthContext();
+        // Log auth context on startup and find CLI
+        _cliPath = LogAuthContext();
     }
 
-    private static void LogAuthContext()
+    private static string? LogAuthContext()
     {
         Console.WriteLine("\n[ClaudeService] === Auth Context Debug ===");
         
@@ -149,6 +151,7 @@ public class ClaudeService : IClaudeService
         }
         
         Console.WriteLine("[ClaudeService] === End Auth Context Debug ===\n");
+        return foundCliPath;
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -214,13 +217,22 @@ public class ClaudeService : IClaudeService
             Response: {SerializeObject(toolResponse)}
             """;
 
-        var options = ClaudeApi.Options()
+        var optionsBuilder = ClaudeApi.Options()
             .SystemPrompt(ObservationSystemPrompt)
             .Model("claude-3-5-haiku-20241022")  // Fast, cheap model for extraction
             .MaxTurns(1)
             .Tools()                             // No tools needed - pure text generation
             .BypassPermissions()                 // Non-interactive mode
-            .Build();
+            .OnStderr(line => Console.WriteLine($"[Claude CLI stderr] {line}"));
+        
+        // Use explicit CLI path if found
+        if (_cliPath != null)
+        {
+            optionsBuilder = optionsBuilder.CliPath(_cliPath);
+            Console.WriteLine($"[ClaudeService] Using explicit CLI path: {_cliPath}");
+        }
+        
+        var options = optionsBuilder.Build();
 
         var response = await GetResponseTextAsync(prompt, options, cancellationToken);
         if (string.IsNullOrWhiteSpace(response))
@@ -280,13 +292,21 @@ public class ClaudeService : IClaudeService
             {(lastAssistantMessage != null ? $"Last assistant message:\n{lastAssistantMessage}" : "")}
             """;
 
-        var options = ClaudeApi.Options()
+        var optionsBuilder = ClaudeApi.Options()
             .SystemPrompt(SummarySystemPrompt)
             .Model("claude-3-5-haiku-20241022")  // Fast, cheap model for summarization
             .MaxTurns(1)
             .Tools()                             // No tools needed - pure text generation
             .BypassPermissions()                 // Non-interactive mode
-            .Build();
+            .OnStderr(line => Console.WriteLine($"[Claude CLI stderr] {line}"));
+            
+        // Use explicit CLI path if found
+        if (_cliPath != null)
+        {
+            optionsBuilder = optionsBuilder.CliPath(_cliPath);
+        }
+        
+        var options = optionsBuilder.Build();
 
         var response = await GetResponseTextAsync(prompt, options, cancellationToken);
         if (string.IsNullOrWhiteSpace(response))
@@ -308,23 +328,18 @@ public class ClaudeService : IClaudeService
         CancellationToken cancellationToken)
     {
         var responseText = new System.Text.StringBuilder();
-
-        // Add stderr logging to diagnose issues
-        var optionsWithLogging = ClaudeApi.Options()
-            .SystemPrompt(options.SystemPrompt ?? "")
-            .Model(options.Model ?? "claude-3-5-haiku-20241022")
-            .MaxTurns(options.MaxTurns ?? 1)
-            .Tools()
-            .BypassPermissions()
-            .OnStderr(line => Console.WriteLine($"[Claude CLI stderr] {line}"))
-            .Build();
+        
+        Console.WriteLine($"[ClaudeService] Starting CLI call...");
+        Console.WriteLine($"[ClaudeService] - CliPath: {options.CliPath ?? "(not set, will auto-detect)"}");
+        Console.WriteLine($"[ClaudeService] - Model: {options.Model}");
+        Console.WriteLine($"[ClaudeService] - MaxTurns: {options.MaxTurns}");
 
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(30)); // 30 second timeout
 
-            await foreach (var message in ClaudeApi.QueryAsync(prompt, optionsWithLogging, cancellationToken: cts.Token))
+            await foreach (var message in ClaudeApi.QueryAsync(prompt, options, cancellationToken: cts.Token))
             {
                 Console.WriteLine($"[Claude CLI] Received message type: {message.GetType().Name}");
                 if (message is AssistantMessage am)
