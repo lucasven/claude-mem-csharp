@@ -61,7 +61,7 @@ public static class SessionEndpoints
         });
 
         /// <summary>
-        /// Queue an observation. Optionally enriches with LLM if enrich=true.
+        /// Queue an observation. LLM enrichment is enabled by default (set enrich=false to disable).
         /// </summary>
         app.MapPost("/api/sessions/observations", async (
             ObservationRequest request,
@@ -94,8 +94,8 @@ public static class SessionEndpoints
             Observation observation;
             var enriched = false;
 
-            // Try LLM enrichment if service available and enrich flag is true
-            if (claudeService != null && request.Enrich == true)
+            // Try LLM enrichment if service available (enabled by default, opt-out with enrich=false)
+            if (claudeService != null && request.Enrich != false)
             {
                 try
                 {
@@ -336,7 +336,7 @@ public class ObservationRequest
     public List<string>? FilesRead { get; set; }
     public List<string>? FilesModified { get; set; }
     public int? DiscoveryTokens { get; set; }
-    public bool? Enrich { get; set; } // Set to true to use LLM enrichment
+    public bool? Enrich { get; set; } // LLM enrichment enabled by default; set to false to disable
 }
 
 public class SummarizeRequest
