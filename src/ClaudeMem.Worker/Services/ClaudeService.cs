@@ -165,16 +165,43 @@ public class ClaudeService : IClaudeService
     {
         var responseText = new System.Text.StringBuilder();
 
-        await foreach (var message in ClaudeApi.QueryAsync(prompt, options, cancellationToken: cancellationToken))
+        // Add stderr logging to diagnose issues
+        var optionsWithLogging = ClaudeApi.Options()
+            .SystemPrompt(options.SystemPrompt ?? "")
+            .Model(options.Model ?? "claude-3-5-haiku-20241022")
+            .MaxTurns(options.MaxTurns ?? 1)
+            .Tools()
+            .BypassPermissions()
+            .OnStderr(line => Console.WriteLine($"[Claude CLI stderr] {line}"))
+            .Build();
+
+        try
         {
-            if (message is AssistantMessage am)
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(30)); // 30 second timeout
+
+            await foreach (var message in ClaudeApi.QueryAsync(prompt, optionsWithLogging, cancellationToken: cts.Token))
             {
-                foreach (var block in am.Content)
+                Console.WriteLine($"[Claude CLI] Received message type: {message.GetType().Name}");
+                if (message is AssistantMessage am)
                 {
-                    if (block is TextBlock tb)
-                        responseText.Append(tb.Text);
+                    foreach (var block in am.Content)
+                    {
+                        if (block is TextBlock tb)
+                            responseText.Append(tb.Text);
+                    }
                 }
             }
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("[Claude CLI] Request timed out after 30 seconds");
+            return "";
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Claude CLI] Error: {ex.Message}");
+            throw;
         }
 
         return responseText.ToString().Trim();
