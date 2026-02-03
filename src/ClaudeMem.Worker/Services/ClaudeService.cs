@@ -7,6 +7,74 @@ namespace ClaudeMem.Worker.Services;
 
 public class ClaudeService : IClaudeService
 {
+    static ClaudeService()
+    {
+        // Log auth context on startup
+        LogAuthContext();
+    }
+
+    private static void LogAuthContext()
+    {
+        Console.WriteLine("\n[ClaudeService] === Auth Context Debug ===");
+        
+        // Check ANTHROPIC_API_KEY
+        var apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+        Console.WriteLine($"[ClaudeService] ANTHROPIC_API_KEY: {(string.IsNullOrEmpty(apiKey) ? "NOT SET" : $"SET (length: {apiKey.Length})")}");
+        
+        // Check Claude auth paths (Windows)
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        
+        Console.WriteLine($"[ClaudeService] AppData: {appData}");
+        Console.WriteLine($"[ClaudeService] LocalAppData: {localAppData}");
+        Console.WriteLine($"[ClaudeService] UserProfile: {userProfile}");
+        
+        // Check common Claude auth locations
+        var possibleAuthPaths = new[]
+        {
+            Path.Combine(appData, "Claude"),
+            Path.Combine(localAppData, "Claude"),
+            Path.Combine(userProfile, ".claude"),
+            Path.Combine(userProfile, ".config", "claude"),
+        };
+        
+        foreach (var path in possibleAuthPaths)
+        {
+            var exists = Directory.Exists(path);
+            Console.WriteLine($"[ClaudeService] Auth path '{path}': {(exists ? "EXISTS" : "NOT FOUND")}");
+            
+            if (exists)
+            {
+                try
+                {
+                    var files = Directory.GetFiles(path, "*", SearchOption.AllDirectories);
+                    foreach (var file in files.Take(10))
+                    {
+                        var relativePath = Path.GetRelativePath(path, file);
+                        Console.WriteLine($"[ClaudeService]   - {relativePath}");
+                    }
+                    if (files.Length > 10)
+                        Console.WriteLine($"[ClaudeService]   ... and {files.Length - 10} more files");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[ClaudeService]   Error listing files: {ex.Message}");
+                }
+            }
+        }
+        
+        // Check current user context
+        Console.WriteLine($"[ClaudeService] Current User: {Environment.UserName}");
+        Console.WriteLine($"[ClaudeService] Current Directory: {Environment.CurrentDirectory}");
+        
+        // Check if claude CLI is accessible
+        var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? "";
+        Console.WriteLine($"[ClaudeService] PATH contains 'claude': {pathEnv.ToLower().Contains("claude")}");
+        
+        Console.WriteLine("[ClaudeService] === End Auth Context Debug ===\n");
+    }
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = false,
