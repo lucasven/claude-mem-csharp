@@ -116,6 +116,21 @@ public class ObservationRepository : IObservationRepository
         return Convert.ToInt32(cmd.ExecuteScalar());
     }
 
+    public List<Observation> GetBySessionId(string sessionId)
+    {
+        using var cmd = _db.GetConnection().CreateCommand();
+        cmd.CommandText = "SELECT * FROM observations WHERE memory_session_id = @sessionId ORDER BY created_at_epoch DESC";
+        cmd.Parameters.AddWithValue("@sessionId", sessionId);
+
+        var results = new List<Observation>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+            results.Add(MapObservation(reader));
+        }
+        return results;
+    }
+
     private static Observation MapObservation(SqliteDataReader reader)
     {
         return new Observation

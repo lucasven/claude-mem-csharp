@@ -1,7 +1,7 @@
 using ClaudeMem.Core.Models;
 using ClaudeMem.Core.Repositories;
 using ClaudeMem.Core.Services;
-using ClaudeMem.Worker.Models;
+using ClaudeMem.Worker.Services;
 
 namespace ClaudeMem.Worker.Endpoints;
 
@@ -45,7 +45,7 @@ public static class SessionEndpoints
             var session = new Session
             {
                 ContentSessionId = request.ContentSessionId,
-                MemorySessionId = request.ContentSessionId,  // Use same ID for FK reference
+                MemorySessionId = request.ContentSessionId,
                 Project = request.Project,
                 UserPrompt = request.Prompt,
                 StartedAt = DateTime.UtcNow
@@ -61,13 +61,15 @@ public static class SessionEndpoints
         });
 
         /// <summary>
-        /// Queue an observation. Auto-indexes for FTS5 (via trigger) and vector search (if enabled).
+        /// Queue an observation. Optionally enriches with LLM if enrich=true.
         /// </summary>
         app.MapPost("/api/sessions/observations", async (
             ObservationRequest request,
             ISessionRepository sessions,
             IObservationRepository observations,
-            HybridSearchService? hybridSearch) =>
+            IClaudeService? claudeService,
+            HybridSearchService? hybridSearch,
+            CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(request.ContentSessionId))
             {
@@ -78,10 +80,10 @@ public static class SessionEndpoints
             var session = sessions.GetByContentSessionId(request.ContentSessionId);
             if (session == null)
             {
-                // Auto-create session if needed
                 session = new Session
                 {
                     ContentSessionId = request.ContentSessionId,
+                    MemorySessionId = request.ContentSessionId,
                     Project = request.Cwd ?? "default",
                     StartedAt = DateTime.UtcNow
                 };
@@ -89,32 +91,47 @@ public static class SessionEndpoints
                 session = sessions.GetByContentSessionId(request.ContentSessionId);
             }
 
-            // Parse observation type
-            var obsType = ObservationType.Discovery;
-            if (!string.IsNullOrEmpty(request.ObservationType))
+            Observation observation;
+            var enriched = false;
+
+            // Try LLM enrichment if service available and enrich flag is true
+            if (claudeService != null && request.Enrich == true)
             {
-                Enum.TryParse<ObservationType>(request.ObservationType, ignoreCase: true, out obsType);
+                try
+                {
+                    var enrichedObs = await claudeService.ExtractObservationAsync(
+                        session!.MemorySessionId ?? session.ContentSessionId,
+                        session.Project,
+                        request.ToolName ?? "unknown",
+                        request.ToolInput,
+                        request.ToolResponse,
+                        ct);
+
+                    if (enrichedObs != null)
+                    {
+                        observation = enrichedObs;
+                        enriched = true;
+                    }
+                    else
+                    {
+                        // LLM decided not to create observation
+                        return Results.Ok(new { status = "skipped", reason = "LLM deemed not worth storing" });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Observation] LLM enrichment failed: {ex.Message}");
+                    // Fall back to basic observation
+                    observation = CreateBasicObservation(request, session!);
+                }
+            }
+            else
+            {
+                // Create basic observation without LLM
+                observation = CreateBasicObservation(request, session!);
             }
 
-            // Create observation
-            var observation = new Observation
-            {
-                MemorySessionId = session!.MemorySessionId ?? session.ContentSessionId,
-                Project = session.Project,
-                Type = obsType,
-                Title = request.Title ?? request.ToolName,
-                Text = request.ToolResponse?.ToString() ?? "",
-                Narrative = request.Narrative,
-                Facts = request.Facts ?? new List<string>(),
-                Concepts = request.Concepts ?? new List<string>(),
-                FilesRead = request.FilesRead ?? new List<string>(),
-                FilesModified = request.FilesModified ?? new List<string>(),
-                // PromptNumber and DiscoveryTokens set from request if provided
-                // TODO: fix build issue with these fields
-                CreatedAt = DateTime.UtcNow
-            };
-
-            // Store observation (FTS5 auto-indexed via trigger)
+            // Store observation
             var obsId = observations.Store(observation);
             observation.Id = obsId;
 
@@ -138,15 +155,22 @@ public static class SessionEndpoints
             {
                 status = "stored",
                 observationId = obsId,
+                enriched,
                 ftsIndexed = true,
                 vectorIndexing = hybridSearch?.VectorSearchAvailable == true
             });
         });
 
-        app.MapPost("/api/sessions/summarize", (
+        /// <summary>
+        /// Generate session summary using LLM.
+        /// </summary>
+        app.MapPost("/api/sessions/summarize", async (
             SummarizeRequest request,
             ISessionRepository sessions,
-            ISummaryRepository summaries) =>
+            IObservationRepository observations,
+            ISummaryRepository summaries,
+            IClaudeService? claudeService,
+            CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(request.ContentSessionId))
             {
@@ -159,21 +183,62 @@ public static class SessionEndpoints
                 return Results.NotFound(new { error = "Session not found" });
             }
 
-            // Create summary
-            var summary = new Summary
+            Summary summary;
+
+            // Try LLM summary generation
+            if (claudeService != null)
             {
-                MemorySessionId = session.MemorySessionId ?? session.ContentSessionId,
-                Project = session.Project,
-                Completed = request.LastAssistantMessage,
-                CreatedAt = DateTime.UtcNow
-            };
+                try
+                {
+                    // Get observations for this session
+                    var sessionObs = observations.GetBySessionId(session.MemorySessionId ?? session.ContentSessionId);
+                    
+                    var extraction = await claudeService.GenerateSummaryAsync(
+                        session.MemorySessionId ?? session.ContentSessionId,
+                        sessionObs,
+                        request.LastAssistantMessage,
+                        ct);
+
+                    if (extraction != null)
+                    {
+                        summary = new Summary
+                        {
+                            MemorySessionId = session.MemorySessionId ?? session.ContentSessionId,
+                            Project = session.Project,
+                            Request = extraction.Request,
+                            Investigated = extraction.Investigated,
+                            Learned = extraction.Learned,
+                            Completed = extraction.Completed,
+                            NextSteps = extraction.NextSteps,
+                            FilesRead = string.Join(", ", extraction.FilesRead ?? []),
+                            FilesEdited = string.Join(", ", extraction.FilesEdited ?? []),
+                            Notes = extraction.Notes,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                    }
+                    else
+                    {
+                        summary = CreateBasicSummary(session, request.LastAssistantMessage);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Summary] LLM generation failed: {ex.Message}");
+                    summary = CreateBasicSummary(session, request.LastAssistantMessage);
+                }
+            }
+            else
+            {
+                summary = CreateBasicSummary(session, request.LastAssistantMessage);
+            }
 
             var summaryId = summaries.Store(summary);
 
             return Results.Ok(new
             {
                 status = "stored",
-                summaryId
+                summaryId,
+                hasLlmContent = !string.IsNullOrEmpty(summary.Request) || !string.IsNullOrEmpty(summary.Learned)
             });
         });
 
@@ -186,9 +251,6 @@ public static class SessionEndpoints
             });
         });
 
-        /// <summary>
-        /// Mark a session as complete (SessionEnd hook).
-        /// </summary>
         app.MapPost("/api/sessions/complete", (
             SessionCompleteRequest request,
             ISessionRepository sessions) =>
@@ -204,7 +266,6 @@ public static class SessionEndpoints
                 return Results.NotFound(new { error = "Session not found" });
             }
 
-            // Mark session as completed
             sessions.MarkComplete(session.Id, request.Reason ?? "exit");
 
             return Results.Ok(new
@@ -215,11 +276,51 @@ public static class SessionEndpoints
             });
         });
     }
+
+    private static Observation CreateBasicObservation(ObservationRequest request, Session session)
+    {
+        var obsType = ObservationType.Discovery;
+        if (!string.IsNullOrEmpty(request.ObservationType))
+        {
+            Enum.TryParse<ObservationType>(request.ObservationType, ignoreCase: true, out obsType);
+        }
+
+        return new Observation
+        {
+            MemorySessionId = session.MemorySessionId ?? session.ContentSessionId,
+            Project = session.Project,
+            Type = obsType,
+            Title = request.Title ?? request.ToolName,
+            Text = request.ToolResponse ?? "",
+            Narrative = request.Narrative,
+            Facts = request.Facts ?? [],
+            Concepts = request.Concepts ?? [],
+            FilesRead = request.FilesRead ?? [],
+            FilesModified = request.FilesModified ?? [],
+            DiscoveryTokens = request.DiscoveryTokens ?? 0,
+            CreatedAt = DateTime.UtcNow
+        };
+    }
+
+    private static Summary CreateBasicSummary(Session session, string? lastMessage)
+    {
+        return new Summary
+        {
+            MemorySessionId = session.MemorySessionId ?? session.ContentSessionId,
+            Project = session.Project,
+            Completed = lastMessage,
+            CreatedAt = DateTime.UtcNow
+        };
+    }
 }
 
-/// <summary>
-/// Request model for creating observations.
-/// </summary>
+public class SessionInitRequest
+{
+    public string? ContentSessionId { get; set; }
+    public string? Project { get; set; }
+    public string? Prompt { get; set; }
+}
+
 public class ObservationRequest
 {
     public string? ContentSessionId { get; set; }
@@ -227,8 +328,6 @@ public class ObservationRequest
     public object? ToolInput { get; set; }
     public string? ToolResponse { get; set; }
     public string? Cwd { get; set; }
-    
-    // Additional fields for structured observations
     public string? Title { get; set; }
     public string? Narrative { get; set; }
     public string? ObservationType { get; set; }
@@ -236,6 +335,8 @@ public class ObservationRequest
     public List<string>? Concepts { get; set; }
     public List<string>? FilesRead { get; set; }
     public List<string>? FilesModified { get; set; }
+    public int? DiscoveryTokens { get; set; }
+    public bool? Enrich { get; set; } // Set to true to use LLM enrichment
 }
 
 public class SummarizeRequest

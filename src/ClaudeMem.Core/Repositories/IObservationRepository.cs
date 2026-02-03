@@ -9,4 +9,5 @@ public interface IObservationRepository
     List<Observation> GetRecent(int limit = 20, int offset = 0, string? project = null);
     List<Observation> GetByIds(IEnumerable<long> ids);
     int GetCount(string? project = null);
+    List<Observation> GetBySessionId(string sessionId);
 }
