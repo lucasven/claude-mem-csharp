@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ClaudeMem.Core\ClaudeMem.Core.csproj" />
+    <ProjectReference Include="..\..\lib\claude-agent-sdk-dotnet\src\Claude.AgentSdk\Claude.AgentSdk.csproj" />
   </ItemGroup>
 
   <ItemGroup>

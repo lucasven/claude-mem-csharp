@@ -23,6 +23,9 @@ builder.Services.AddSingleton<IUserPromptRepository, UserPromptRepository>();
 // Register SSE broadcaster for viewer UI
 builder.Services.AddSingleton<SSEBroadcaster>();
 
+// Register Claude service for LLM-powered observation extraction and summaries
+builder.Services.AddSingleton<IClaudeService, ClaudeService>();
+
 // Register FTS5 search (always available)
 builder.Services.AddSingleton<FullTextSearchService>();
 
