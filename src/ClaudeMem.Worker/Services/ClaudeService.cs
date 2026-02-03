@@ -72,7 +72,10 @@ public class ClaudeService : IClaudeService
 
         var options = ClaudeApi.Options()
             .SystemPrompt(ObservationSystemPrompt)
+            .Model("claude-3-5-haiku-20241022")  // Fast, cheap model for extraction
             .MaxTurns(1)
+            .Tools()                             // No tools needed - pure text generation
+            .BypassPermissions()                 // Non-interactive mode
             .Build();
 
         var response = await GetResponseTextAsync(prompt, options, cancellationToken);
@@ -135,7 +138,10 @@ public class ClaudeService : IClaudeService
 
         var options = ClaudeApi.Options()
             .SystemPrompt(SummarySystemPrompt)
+            .Model("claude-3-5-haiku-20241022")  // Fast, cheap model for summarization
             .MaxTurns(1)
+            .Tools()                             // No tools needed - pure text generation
+            .BypassPermissions()                 // Non-interactive mode
             .Build();
 
         var response = await GetResponseTextAsync(prompt, options, cancellationToken);
