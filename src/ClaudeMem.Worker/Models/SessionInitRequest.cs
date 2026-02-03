@@ -20,12 +20,16 @@ public record SessionInitRequest(
 /// <param name="ToolInput">Input provided to the tool</param>
 /// <param name="ToolResponse">Response from the tool</param>
 /// <param name="Cwd">Current working directory</param>
+/// <param name="Title">Optional title for the observation</param>
+/// <param name="ObservationType">Type of observation (discovery, modification, action, observation)</param>
 public record ObservationRequest(
     string? ContentSessionId,
     string? ToolName,
     object? ToolInput,
     object? ToolResponse,
-    string? Cwd
+    string? Cwd,
+    string? Title,
+    string? ObservationType
 );
 
 /// <summary>

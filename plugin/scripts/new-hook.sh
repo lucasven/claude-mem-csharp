@@ -37,7 +37,7 @@ curl -s --max-time 5 -X POST \
         '{
             contentSessionId: $sid,
             project: $proj,
-            userPrompt: $prompt
+            prompt: $prompt
         }')" \
     >/dev/null 2>&1 || true
 

@@ -29,7 +29,7 @@ try {
     $body = @{
         contentSessionId = $sessionId
         project = $project
-        userPrompt = $prompt
+        prompt = $prompt
     } | ConvertTo-Json
     
     Invoke-RestMethod -Uri "$WorkerUrl/api/sessions/init" -Method Post -Body $body -ContentType "application/json" -TimeoutSec 5 | Out-Null
