@@ -11,8 +11,7 @@ public static class SessionEndpoints
     {
         app.MapPost("/api/sessions/init", (
             SessionInitRequest request,
-            ISessionRepository sessions,
-            IUserPromptRepository prompts) =>
+            ISessionRepository sessions) =>
         {
             if (string.IsNullOrWhiteSpace(request.ContentSessionId))
             {
@@ -33,29 +32,12 @@ public static class SessionEndpoints
             }
 
             var existing = sessions.GetByContentSessionId(request.ContentSessionId);
-            var promptNumber = 1;
-            
             if (existing != null)
             {
-                // Session exists, but if we have a new prompt, save it
-                if (!string.IsNullOrWhiteSpace(request.Prompt))
-                {
-                    promptNumber = prompts.GetNextPromptNumber(request.ContentSessionId);
-                    prompts.Store(new UserPrompt
-                    {
-                        ContentSessionId = request.ContentSessionId,
-                        Project = request.Project,
-                        PromptNumber = promptNumber,
-                        PromptText = request.Prompt,
-                        MemorySessionId = existing.MemorySessionId,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                }
-                
                 return Results.Ok(new
                 {
                     sessionDbId = existing.Id,
-                    promptNumber,
+                    promptNumber = 1,
                     skipped = false
                 });
             }
@@ -70,21 +52,6 @@ public static class SessionEndpoints
             };
 
             var id = sessions.Create(session);
-            
-            // Save initial prompt to user_prompts table
-            if (!string.IsNullOrWhiteSpace(request.Prompt))
-            {
-                prompts.Store(new UserPrompt
-                {
-                    ContentSessionId = request.ContentSessionId,
-                    Project = request.Project,
-                    PromptNumber = 1,
-                    PromptText = request.Prompt,
-                    MemorySessionId = request.ContentSessionId,
-                    CreatedAt = DateTime.UtcNow
-                });
-            }
-            
             return Results.Ok(new
             {
                 sessionDbId = id,

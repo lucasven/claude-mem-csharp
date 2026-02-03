@@ -16,10 +16,11 @@ public class SqliteVectorStore : IVectorStore, IDisposable
 
     public SqliteVectorStore(string? dbPath = null)
     {
-        var dataDir = Environment.GetEnvironmentVariable("CLAUDE_MEM_DATA_DIR")
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude-mem");
-        
-        _dbPath = dbPath ?? Path.Combine(dataDir, "vectors.db");
+        _dbPath = dbPath ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".claude-mem-csharp",
+            "vectors.db"
+        );
 
         Directory.CreateDirectory(Path.GetDirectoryName(_dbPath)!);
         _connection = new SqliteConnection($"Data Source={_dbPath}");

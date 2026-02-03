@@ -10,12 +10,30 @@ public static class HealthEndpoints
         // Health check endpoint
         app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
+        app.MapGet("/api/stats", (ClaudeMem.Core.Data.ClaudeMemDatabase db,
+            IObservationRepository observations,
+            ISessionRepository sessions) =>
+        {
+            return Results.Ok(new
+            {
+                worker = new
+                {
+                    version = "1.0.0",
+                    uptime = Environment.TickCount64 / 1000,
+                    port = Environment.GetEnvironmentVariable("CLAUDE_MEM_WORKER_PORT") ?? "37777"
+                },
+                observations = observations.GetCount(),
+                sessions = sessions.GetCount()
+            });
+        });
+
         // Context injection endpoint for SessionStart hook
-        app.MapGet("/api/context/inject", (
+        app.MapGet("/api/context/inject", async (
             string? project,
             HybridSearchService search,
             IObservationRepository observations,
-            ISummaryRepository summaries) =>
+            ISummaryRepository summaries,
+            CancellationToken ct) =>
         {
             var contextParts = new List<string>();
             

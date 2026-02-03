@@ -103,13 +103,8 @@ public class ClaudeMemDatabase : IDisposable
 
     private static string GetDataDirectory()
     {
-        // Allow override via environment variable
-        var customPath = Environment.GetEnvironmentVariable("CLAUDE_MEM_DATA_DIR");
-        if (!string.IsNullOrEmpty(customPath))
-            return customPath;
-            
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return Path.Combine(home, ".claude-mem");
+        return Path.Combine(home, ".claude-mem-csharp");
     }
 
     public void Dispose()

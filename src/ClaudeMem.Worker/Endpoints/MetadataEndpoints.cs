@@ -80,39 +80,5 @@ public static class MetadataEndpoints
             // Broadcast current status (no-op for now)
             return Results.Ok(new { status = "ok", isProcessing = false, queueDepth = 0, activeSessions = 0 });
         });
-
-        // Logs endpoint (stub - worker logs not persisted in DB)
-        app.MapGet("/api/logs", () =>
-        {
-            return Results.Ok(new { logs = new List<object>() });
-        });
-
-        app.MapPost("/api/logs/clear", () =>
-        {
-            return Results.Ok(new { status = "ok" });
-        });
-
-        // Settings endpoint (returns current configuration)
-        app.MapGet("/api/settings", () =>
-        {
-            return Results.Ok(new
-            {
-                llm = new
-                {
-                    provider = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY") != null ? "anthropic" 
-                             : Environment.GetEnvironmentVariable("OPENAI_API_KEY") != null ? "openai" 
-                             : "none",
-                    model = Environment.GetEnvironmentVariable("CLAUDE_MEM_LLM_MODEL") ?? "gpt-4o-mini"
-                },
-                embedding = new
-                {
-                    provider = Environment.GetEnvironmentVariable("CLAUDE_MEM_EMBEDDING_PROVIDER") ?? "local",
-                    model = Environment.GetEnvironmentVariable("CLAUDE_MEM_EMBEDDING_MODEL") ?? "all-MiniLM-L6-v2"
-                },
-                vectorStore = Environment.GetEnvironmentVariable("CLAUDE_MEM_VECTOR_STORE") ?? "sqlite",
-                dataDir = Environment.GetEnvironmentVariable("CLAUDE_MEM_DATA_DIR") 
-                        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude-mem")
-            });
-        });
     }
 }
