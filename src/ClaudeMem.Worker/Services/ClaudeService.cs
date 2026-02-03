@@ -72,6 +72,82 @@ public class ClaudeService : IClaudeService
         var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? "";
         Console.WriteLine($"[ClaudeService] PATH contains 'claude': {pathEnv.ToLower().Contains("claude")}");
         
+        // Search for Claude CLI in common locations
+        Console.WriteLine("[ClaudeService] Searching for Claude CLI...");
+        var cliLocations = new[]
+        {
+            // Windows locations
+            Path.Combine(appData, "npm", "claude.cmd"),
+            Path.Combine(appData, "npm", "claude.exe"),
+            Path.Combine(localAppData, "Claude", "claude.exe"),
+            Path.Combine(userProfile, ".local", "bin", "claude.exe"),
+            Path.Combine(userProfile, ".npm-global", "bin", "claude.cmd"),
+            Path.Combine(userProfile, "node_modules", ".bin", "claude.cmd"),
+            Path.Combine(userProfile, ".claude", "local", "claude.exe"),
+            // Also check if it's in a node_modules somewhere
+            Path.Combine(userProfile, "AppData", "Roaming", "npm", "claude.cmd"),
+        };
+        
+        string? foundCliPath = null;
+        foreach (var location in cliLocations)
+        {
+            var exists = File.Exists(location);
+            if (exists)
+            {
+                Console.WriteLine($"[ClaudeService] CLI FOUND: {location}");
+                foundCliPath = location;
+            }
+            else
+            {
+                Console.WriteLine($"[ClaudeService] CLI not at: {location}");
+            }
+        }
+        
+        // Try to find via 'where' command on Windows
+        if (foundCliPath == null && OperatingSystem.IsWindows())
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "where",
+                    Arguments = "claude",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = System.Diagnostics.Process.Start(psi);
+                if (proc != null)
+                {
+                    var output = proc.StandardOutput.ReadToEnd();
+                    proc.WaitForExit(5000);
+                    if (!string.IsNullOrWhiteSpace(output))
+                    {
+                        Console.WriteLine($"[ClaudeService] 'where claude' found: {output.Trim()}");
+                        foundCliPath = output.Trim().Split('\n')[0].Trim();
+                    }
+                    else
+                    {
+                        Console.WriteLine("[ClaudeService] 'where claude' returned empty");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ClaudeService] 'where claude' error: {ex.Message}");
+            }
+        }
+        
+        if (foundCliPath != null)
+        {
+            Console.WriteLine($"[ClaudeService] Will use CLI at: {foundCliPath}");
+        }
+        else
+        {
+            Console.WriteLine("[ClaudeService] WARNING: Claude CLI not found in any known location!");
+        }
+        
         Console.WriteLine("[ClaudeService] === End Auth Context Debug ===\n");
     }
 
