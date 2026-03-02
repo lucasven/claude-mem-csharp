@@ -1,0 +1,21 @@
+[Unit]
+Description=Claude-Mem Worker Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/claude-mem/ClaudeMem.Worker
+Restart=always
+RestartSec=5
+Environment=DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+Environment=CLAUDE_MEM_WORKER_PORT=37777
+WorkingDirectory=/opt/claude-mem
+User=root
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claude-mem
+
+[Install]
+WantedBy=multi-user.target

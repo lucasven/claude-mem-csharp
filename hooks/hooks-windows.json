@@ -1,0 +1,47 @@
+{
+  "description": "Claude-Mem C# hooks for Windows",
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "startup|clear|compact",
+      "hooks": [{
+        "type": "command",
+        "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/plugin/scripts/context-hook.ps1\"",
+        "timeout": 300,
+        "statusMessage": "Loading memory context..."
+      }, {
+        "type": "command",
+        "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/plugin/scripts/user-message-hook.ps1\"",
+        "timeout": 10
+      }]
+    }],
+    "UserPromptSubmit": [{
+      "hooks": [{
+        "type": "command",
+        "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/plugin/scripts/new-hook.ps1\"",
+        "timeout": 120
+      }]
+    }],
+    "PostToolUse": [{
+      "matcher": "*",
+      "hooks": [{
+        "type": "command",
+        "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/plugin/scripts/save-hook.ps1\"",
+        "timeout": 120
+      }]
+    }],
+    "Stop": [{
+      "hooks": [{
+        "type": "command",
+        "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/plugin/scripts/summary-hook.ps1\"",
+        "timeout": 120
+      }]
+    }],
+    "SessionEnd": [{
+      "hooks": [{
+        "type": "command",
+        "command": "powershell -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/plugin/scripts/cleanup-hook.ps1\"",
+        "timeout": 120
+      }]
+    }]
+  }
+}

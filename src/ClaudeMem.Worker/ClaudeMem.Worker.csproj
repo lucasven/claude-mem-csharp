@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ClaudeMem.Core\ClaudeMem.Core.csproj" />
+    <ProjectReference Include="..\..\lib\claude-agent-sdk-dotnet\src\Claude.AgentSdk\Claude.AgentSdk.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Anthropic" Version="12.2.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- Copy ui folder to output directory -->
+  <Target Name="CopyUIFolder" AfterTargets="Build">
+    <ItemGroup>
+      <UIFiles Include="ui\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(UIFiles)" 
+          DestinationFolder="$(OutputPath)ui\%(RecursiveDir)" 
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>
