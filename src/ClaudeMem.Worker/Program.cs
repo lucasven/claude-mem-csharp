@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ClaudeMem.Core.Data;
 using ClaudeMem.Core.Repositories;
 using ClaudeMem.Core.Services;
@@ -8,6 +9,14 @@ using ClaudeMem.Worker.Services;
 using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Use snake_case JSON serialization to match viewer UI expectations
+// PropertyNameCaseInsensitive ensures incoming camelCase from hooks still binds to C# properties
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
+    options.SerializerOptions.PropertyNameCaseInsensitive = true;
+});
 
 // Configure port from settings or default
 var port = Environment.GetEnvironmentVariable("CLAUDE_MEM_WORKER_PORT") ?? "37777";

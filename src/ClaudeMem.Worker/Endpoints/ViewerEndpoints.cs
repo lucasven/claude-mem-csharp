@@ -69,9 +69,14 @@ public static class ViewerEndpoints
         });
     }
 
+    private static readonly System.Text.Json.JsonSerializerOptions SnakeCaseOptions = new()
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower
+    };
+
     private static async Task WriteSSEEvent(HttpResponse response, object data, CancellationToken ct)
     {
-        var json = System.Text.Json.JsonSerializer.Serialize(data);
+        var json = System.Text.Json.JsonSerializer.Serialize(data, SnakeCaseOptions);
         var bytes = System.Text.Encoding.UTF8.GetBytes($"data: {json}\n\n");
         await response.Body.WriteAsync(bytes, ct);
         await response.Body.FlushAsync(ct);

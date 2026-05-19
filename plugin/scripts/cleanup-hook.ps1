@@ -33,6 +33,9 @@ if (-not $sessionId) {
     exit 0
 }
 
+# Ensure worker is running
+& "$PSScriptRoot\ensure-worker.ps1" | Out-Null
+
 # HTTP POST
 try {
     $body = @{

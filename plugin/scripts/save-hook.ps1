@@ -106,6 +106,9 @@ elseif ($toolName -eq "Grep" -and $inputObj.pattern) {
 
 Write-Log "Title: $title, Type: $obsType, FilesRead: $($filesRead -join ','), FilesModified: $($filesModified -join ',')"
 
+# Ensure worker is running
+& "$PSScriptRoot\ensure-worker.ps1" | Out-Null
+
 # Truncate response
 if ($toolResponse.Length -gt 10240) {
     $toolResponse = $toolResponse.Substring(0, 10240)

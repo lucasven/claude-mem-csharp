@@ -13,6 +13,31 @@ public class UserPromptRepository : IUserPromptRepository
         _db = db;
     }
 
+    public long Store(UserPrompt prompt)
+    {
+        using var cmd = _db.Connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT OR IGNORE INTO user_prompts (
+                content_session_id, project, prompt_number, prompt_text,
+                memory_session_id, created_at, created_at_epoch
+            ) VALUES (
+                @contentSessionId, @project, @promptNumber, @promptText,
+                @memorySessionId, @createdAt, @createdAtEpoch
+            );
+            SELECT last_insert_rowid();
+            """;
+
+        cmd.Parameters.AddWithValue("@contentSessionId", prompt.ContentSessionId);
+        cmd.Parameters.AddWithValue("@project", prompt.Project);
+        cmd.Parameters.AddWithValue("@promptNumber", prompt.PromptNumber);
+        cmd.Parameters.AddWithValue("@promptText", prompt.PromptText);
+        cmd.Parameters.AddWithValue("@memorySessionId", (object?)prompt.MemorySessionId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("@createdAt", prompt.CreatedAt.ToString("o"));
+        cmd.Parameters.AddWithValue("@createdAtEpoch", prompt.CreatedAtEpoch);
+
+        return (long)cmd.ExecuteScalar()!;
+    }
+
     public List<UserPrompt> GetRecent(int limit, int offset, string? project)
     {
         var prompts = new List<UserPrompt>();

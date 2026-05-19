@@ -6,5 +6,8 @@ public enum ObservationType
     Bugfix,
     Feature,
     Refactor,
-    Discovery
+    Discovery,
+    Modification,
+    Action,
+    Observation
 }

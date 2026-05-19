@@ -15,14 +15,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
-  <!-- Copy ui folder to output directory -->
-  <Target Name="CopyUIFolder" AfterTargets="Build">
-    <ItemGroup>
-      <UIFiles Include="ui\**\*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(UIFiles)" 
-          DestinationFolder="$(OutputPath)ui\%(RecursiveDir)" 
-          SkipUnchangedFiles="true" />
-  </Target>
+  <!-- Include ui folder in both build and publish output -->
+  <ItemGroup>
+    <Content Include="ui\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>

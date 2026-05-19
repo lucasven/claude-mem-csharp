@@ -34,7 +34,7 @@ public static class MetadataEndpoints
                     uptime,
                     activeSessions = 0,
                     sseClients = 0,
-                    port = Environment.GetEnvironmentVariable("CLAUDE_MEM_WORKER_PORT") ?? "37778"
+                    port = Environment.GetEnvironmentVariable("CLAUDE_MEM_WORKER_PORT") ?? "37777"
                 },
                 database = new
                 {
@@ -77,8 +77,60 @@ public static class MetadataEndpoints
 
         app.MapPost("/api/processing", () =>
         {
-            // Broadcast current status (no-op for now)
             return Results.Ok(new { status = "ok", isProcessing = false, queueDepth = 0, activeSessions = 0 });
+        });
+
+        // Settings endpoint - stub for viewer UI compatibility
+        app.MapGet("/api/settings", () =>
+        {
+            return Results.Ok(new
+            {
+                contextInjection = true,
+                maxObservations = 50,
+                maxSummaries = 10,
+                maxPrompts = 5,
+                vectorSearch = Environment.GetEnvironmentVariable("CLAUDE_MEM_VECTOR_ENABLED") != "false"
+            });
+        });
+
+        app.MapPost("/api/settings", () =>
+        {
+            return Results.Ok(new { status = "ok" });
+        });
+
+        // Logs endpoint - stub for viewer UI compatibility
+        app.MapGet("/api/logs", () =>
+        {
+            var logPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".claude-mem-csharp", "hooks.log");
+            var lines = new List<string>();
+            if (File.Exists(logPath))
+            {
+                lines = File.ReadLines(logPath).TakeLast(100).ToList();
+            }
+            return Results.Ok(new { logs = lines });
+        });
+
+        app.MapPost("/api/logs/clear", () =>
+        {
+            var logPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".claude-mem-csharp", "hooks.log");
+            if (File.Exists(logPath))
+                File.WriteAllText(logPath, "");
+            return Results.Ok(new { status = "cleared" });
+        });
+
+        // Context preview endpoint - stub for viewer UI compatibility
+        app.MapGet("/api/context/preview", (string? project) =>
+        {
+            return Results.Ok(new
+            {
+                context = "",
+                tokenCount = 0,
+                project = project ?? "default"
+            });
         });
     }
 }

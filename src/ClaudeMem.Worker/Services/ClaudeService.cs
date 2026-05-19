@@ -219,7 +219,7 @@ public class ClaudeService : IClaudeService
 
         var optionsBuilder = ClaudeApi.Options()
             .SystemPrompt(ObservationSystemPrompt)
-            .Model("claude-3-5-haiku-20241022")  // Fast, cheap model for extraction
+            .Model("claude-haiku-4-5-20251001")  // Fast, cheap model for extraction
             .MaxTurns(1)
             .Tools()                             // No tools needed - pure text generation
             .BypassPermissions()                 // Non-interactive mode
@@ -294,7 +294,7 @@ public class ClaudeService : IClaudeService
 
         var optionsBuilder = ClaudeApi.Options()
             .SystemPrompt(SummarySystemPrompt)
-            .Model("claude-3-5-haiku-20241022")  // Fast, cheap model for summarization
+            .Model("claude-haiku-4-5-20251001")  // Fast, cheap model for summarization
             .MaxTurns(1)
             .Tools()                             // No tools needed - pure text generation
             .BypassPermissions()                 // Non-interactive mode

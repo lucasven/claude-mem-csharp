@@ -1,0 +1,159 @@
+ Observation Data Pipeline — End to End
+
+  Phase 1: Hook Capture (Edge)
+
+  When Claude Code uses any tool, the PostToolUse hook fires. The bash command in hooks.json pipes stdin (containing session_id, tool_name, tool_input, tool_response, cwd) through:
+
+  hooks.json → bun-runner.js → worker-service.cjs hook claude-code observation
+
+  hook-command.ts:54-72 orchestrates the pipeline:
+  1. readJsonFromStdin() — collects the raw JSON payload
+  2. claudeCodeAdapter.normalizeInput() — maps raw fields to NormalizedHookInput
+  3. observationHandler.execute() — posts to the worker's HTTP API at POST /api/sessions/observations
+
+  Phase 2: Ingest & Queue (shared.ts)
+
+  ingestObservation() at src/services/worker/http/shared.ts:97-182:
+
+  1. Filter — skips if project is in CLAUDE_MEM_EXCLUDED_PROJECTS, tool is in CLAUDE_MEM_SKIP_TOOLS, or the file operation targets session-memory files
+  2. Session resolution — store.createSDKSession() gets or creates a row in sdk_sessions (idempotent on content_session_id)
+  3. Privacy check — PrivacyCheckValidator checks if the user prompt was wrapped in <private> tags
+  4. Tag stripping — stripMemoryTagsFromJson() removes <private>, <claude-mem-context> etc. from tool input/response
+  5. Enqueue — sessionManager.queueObservation() inserts into pending_messages table with status='pending'
+  6. Trigger generator — ensureGeneratorRunning() starts the SDK agent if not already running
+
+  Phase 3: Queue & Claiming (pending_messages table)
+
+  Schema (PendingMessageStore):
+  pending_messages (
+    id INTEGER PRIMARY KEY,
+    session_db_id, content_session_id,
+    message_type ('observation' | 'summarize'),
+    tool_name, tool_input, tool_response,  -- JSON strings
+    cwd, last_assistant_message,
+    prompt_number, status ('pending' | 'processing'),
+    created_at_epoch, agent_type, agent_id
+  )
+
+  State machine:
+  pending → claimNextMessage() → processing → confirmProcessed() → [deleted]
+                                      ↓ (on error/restart)
+                            resetProcessingToPending() → pending
+
+  SessionQueueProcessor.createIterator() at src/services/queue/SessionQueueProcessor.ts:23-70:
+  - Loops calling store.claimNextMessage(sessionDbId) which atomically sets status='processing' and returns the row
+  - If no messages, waits for an EventEmitter 'message' event (fired when new messages are enqueued)
+  - After 3 minutes idle with no new messages, triggers an idle timeout that aborts the SDK subprocess
+  - Yields each claimed message as a PendingMessageWithId
+
+  Phase 4: Prompt Building & SDK Call (ClaudeProvider)
+
+  ClaudeProvider.startSession() at src/services/worker/ClaudeProvider.ts:162:
+
+  1. Spawns a Claude Agent SDK process via query() — a real Claude Code subprocess with tools disabled (disallowedTools blocks Bash, Read, Write, etc.)
+  2. The createMessageGenerator() async generator (line 397) feeds messages to the SDK:
+    - First yield: Either buildInitPrompt() (first prompt) or buildContinuationPrompt() (continuation) — establishes the observer identity and output format
+    - Subsequent yields: For each claimed pending message:
+        - Observation: buildObservationPrompt() wraps tool data in XML:
+  <observed_from_primary_session>
+    <what_happened>Read</what_happened>
+    <occurred_at>2026-05-11T...</occurred_at>
+    <working_directory>/path/to/project</working_directory>
+    <parameters>{"file_path": "..."}</parameters>
+    <outcome>{"content": "..."}</outcome>
+  </observed_from_primary_session>
+  Return either one or more <observation>...</observation> blocks, or empty if skippable.
+      - Summarize: buildSummaryPrompt() asks for a <summary> block with request/investigated/learned/completed/next_steps/notes
+  3. The SDK subprocess (Claude model, configurable via CLAUDE_MEM_MODEL) responds with XML observation blocks
+
+  Phase 5: Parse Response (parser.ts)
+
+  parseAgentXml() at src/sdk/parser.ts:41:
+
+  - Strips code fences if the entire response is wrapped in one
+  - Checks for <skip_summary /> self-closing tag
+  - Extracts all <observation> blocks via regex, each containing:
+  <observation>
+    <type>discovery|bugfix|feature|refactor|change|decision</type>
+    <title>Short descriptive title</title>
+    <subtitle>Optional elaboration</subtitle>
+    <facts><fact>...</fact></facts>
+    <narrative>Detailed description</narrative>
+    <concepts><concept>keyword</concept></concepts>
+    <files_read><file>relative/path</file></files_read>
+    <files_modified><file>relative/path</file></files_modified>
+  </observation>
+  - Validates type against the active mode's configured observation_types
+  - Filters out the observation type from concepts (dedup)
+  - Rejects empty observations (no title, narrative, facts, or concepts)
+
+  Phase 6: Store & Broadcast (ResponseProcessor → observations/store.ts)
+
+  processAgentResponse() at src/services/worker/agents/ResponseProcessor.ts:17:
+
+  1. Parses the text via parseAgentXml()
+  2. If invalid XML or empty — confirms the claimed messages as processed (drops them) and returns
+  3. If memorySessionId not yet captured from SDK — resets messages back to pending (retry next round)
+  4. Labels observations with agent_type/agent_id from the pending message
+  5. Calls sessionStore.storeObservations() which for each observation calls:
+
+  storeObservation() at src/services/sqlite/observations/store.ts:19:
+  INSERT INTO observations
+    (memory_session_id, project, type, title, subtitle, facts, narrative,
+     concepts, files_read, files_modified, prompt_number, discovery_tokens,
+     agent_type, agent_id, content_hash, created_at, created_at_epoch)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(memory_session_id, content_hash) DO NOTHING
+  RETURNING id, created_at_epoch
+
+  - Deduplication: content_hash is SHA-256 of memorySessionId + title + narrative, truncated to 16 hex chars. UNIQUE(memory_session_id, content_hash) prevents duplicates.
+  - Array fields (facts, concepts, files_read, files_modified) are stored as JSON strings.
+
+  6. After storage:
+    - confirmClaimedMessages() — deletes the processed pending_messages rows
+    - ChromaSync.syncObservation() — upserts into Chroma vector DB for semantic search
+    - broadcastObservation() — SSE event to the Viewer UI
+    - notifyTelegram() — optional Telegram notification
+    - updateFolderClaudeMdFiles() — optional per-folder CLAUDE.md updates
+
+  Phase 7: Summary (Stop hook)
+
+  Same pipeline but with message_type='summarize'. The prompt asks for <summary> with structured fields (request, investigated, learned, completed, next_steps, notes). Stored in a separate summaries table and
+  synced to Chroma.
+
+  Database Schema (final state)
+
+  sdk_sessions
+    ├── id (PK)
+    ├── content_session_id (UNIQUE)
+    ├── memory_session_id (captured from SDK subprocess)
+    ├── project, platform_source, user_prompt, status
+    └── started_at
+
+  pending_messages (transient queue)
+    ├── id (PK)
+    ├── session_db_id → sdk_sessions.id
+    ├── message_type, tool_name, tool_input, tool_response
+    ├── status (pending → processing → deleted)
+    └── created_at_epoch
+
+  observations (permanent storage)
+    ├── id (PK)
+    ├── memory_session_id, project
+    ├── type, title, subtitle, facts, narrative, concepts
+    ├── files_read, files_modified
+    ├── prompt_number, discovery_tokens
+    ├── agent_type, agent_id
+    ├── content_hash (UNIQUE with memory_session_id)
+    └── created_at_epoch, generated_by_model
+
+  user_prompts
+    ├── content_session_id, prompt_number, prompt_text
+    └── project, memory_session_id
+
+  Key Design Decisions
+
+  - Async processing: Hooks return immediately after enqueuing; the SDK subprocess processes messages asynchronously, so Claude Code is never blocked waiting for observation generation
+  - Conversational SDK agent: The observer runs as a persistent Claude conversation — each observation is a new user message, building context across the session
+  - Idempotent storage: ON CONFLICT DO NOTHING on content hash prevents duplicate observations from retries or restarts
+  - Graceful degradation: Every hook catches worker-unavailable errors and exits 0, never blocking the user's primary Claude Code session

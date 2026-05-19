@@ -13,7 +13,8 @@ public class MigrationRunner
         _migrations =
         [
             new Migration001_InitialSchema(),
-            new Migration002_FTS5Search()
+            new Migration002_FTS5Search(),
+            new Migration003_ExtendObservationTypes()
         ];
     }
 

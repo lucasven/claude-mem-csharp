@@ -1,0 +1,174 @@
+Now I have a complete picture. Here's the gap analysis between observations.txt (the documented pipeline) and what's
+  actually implemented in the C# codebase:
+
+  ---
+  Compliance Gap Analysis
+
+  Phase 1: Hook Capture — Mostly compliant (different approach)
+
+  The doc describes hooks.json → bun-runner.js → worker-service.cjs → hook-command.ts. The C# codebase uses
+  PowerShell/Bash scripts instead, which directly POST to the Worker HTTP API. This is a valid architectural choice,
+  but:
+
+  - ObservationHandler.cs:5-9 — The C# handler is a stub (// TODO: Call worker API to store observation). The hooks
+  project isn't actually used; the PS1 scripts do the work directly. Dead code.
+
+  Phase 2: Ingest & Queue — Major gaps
+
+  The doc describes ingestObservation() with 6 substeps. Current implementation in SessionEndpoints.cs:89-176:
+
+  Documented Feature: Filter (excluded projects, skip tools, session-memory files)
+  Status: Partial — tool skip list in save-hook.ps1:19 only, no project exclusion or session-memory filtering on the
+    server
+  ────────────────────────────────────────
+  Documented Feature: Session resolution (idempotent upsert)
+  Status: Done — GetByContentSessionId + create if null
+  ────────────────────────────────────────
+  Documented Feature: Privacy check (<private> tag detection)
+  Status: Missing
+  ────────────────────────────────────────
+  Documented Feature: Tag stripping (<private>, <claude-mem-context>)
+  Status: Missing
+  ────────────────────────────────────────
+  Documented Feature: Queue to pending_messages
+  Status: Missing — stores directly, no async queue
+  ────────────────────────────────────────
+  Documented Feature: Trigger generator (start SDK agent)
+  Status: Missing — enrichment is fire-and-forget, not a persistent agent
+
+  Phase 3: Queue & Claiming — Not implemented
+
+  The pending_messages table and its state machine (pending → processing → deleted) do not exist in the schema.
+  Migration001_InitialSchema.cs has no pending_messages table. There is no SessionQueueProcessor, no claim/confirm flow,
+   no idle timeout.
+
+  Phase 4: Prompt Building & SDK Call — Partially implemented, different design
+
+  Documented Feature: Persistent conversational SDK agent (buildInitPrompt → buildContinuationPrompt)
+  Status: Missing — ClaudeService.cs makes independent one-shot calls
+  ────────────────────────────────────────
+  Documented Feature: XML prompt format (<observed_from_primary_session>)
+  Status: Missing — uses plain text prompts
+  ────────────────────────────────────────
+  Documented Feature: XML response format (<observation> blocks)
+  Status: Missing — expects JSON response
+  ────────────────────────────────────────
+  Documented Feature: Configurable model (CLAUDE_MEM_MODEL)
+  Status: Missing — hardcoded to claude-haiku-4-5-20251001
+  ────────────────────────────────────────
+  Documented Feature: disallowedTools blocking
+  Status: Done — .Tools() with no tools listed
+
+  Phase 5: Parse Response — Different format
+
+  The doc describes parseAgentXml() extracting <observation> blocks with type validation. The C# code
+  (ClaudeService.cs:243) uses JsonSerializer.Deserialize<ObservationExtraction> instead. No XML parsing exists.
+
+  ┌──────────────────────────────────────────────────────┬────────────────────────────────────────────────────┐
+  │                  Documented Feature                  │                       Status                       │
+  ├──────────────────────────────────────────────────────┼────────────────────────────────────────────────────┤
+  │ Code fence stripping                                 │ Missing                                            │
+  ├──────────────────────────────────────────────────────┼────────────────────────────────────────────────────┤
+  │ <skip_summary /> detection                           │ Missing                                            │
+  ├──────────────────────────────────────────────────────┼────────────────────────────────────────────────────┤
+  │ Type validation against configured observation_types │ Missing                                            │
+  ├──────────────────────────────────────────────────────┼────────────────────────────────────────────────────┤
+  │ Concept dedup (filter type from concepts)            │ Missing                                            │
+  ├──────────────────────────────────────────────────────┼────────────────────────────────────────────────────┤
+  │ Empty observation rejection                          │ Partial — checks ShouldCreate but not empty fields │
+  └──────────────────────────────────────────────────────┴────────────────────────────────────────────────────┘
+
+  Phase 6: Store & Broadcast — Major gaps
+
+  Documented Feature: Content hash deduplication (ON CONFLICT(memory_session_id, content_hash) DO NOTHING)
+  Status: Missing — ObservationRepository.cs:20-49 does plain INSERT with no content_hash column
+  ────────────────────────────────────────
+  Documented Feature: content_hash column
+  Status: Missing from schema
+  ────────────────────────────────────────
+  Documented Feature: agent_type / agent_id columns
+  Status: Missing from schema
+  ────────────────────────────────────────
+  Documented Feature: generated_by_model column
+  Status: Missing from schema
+  ────────────────────────────────────────
+  Documented Feature: SSE broadcast on store
+  Status: Missing — SSEBroadcaster exists but is never called after storing an observation
+  ────────────────────────────────────────
+  Documented Feature: Chroma/vector sync on store
+  Status: Partial — HybridSearchService.IndexObservationAsync is called in SessionEndpoints.cs:159 but uses SQLite
+    vector, not Chroma
+  ────────────────────────────────────────
+  Documented Feature: Telegram notification
+  Status: Missing
+  ────────────────────────────────────────
+  Documented Feature: Per-folder CLAUDE.md update
+  Status: Missing
+
+  Phase 7: Summary — Mostly implemented
+
+  Summary generation via POST /api/sessions/summarize works with LLM + observation-based fallback. Minor gap:
+  - No <summary> XML block parsing — uses JSON
+  - No separate Chroma sync for summaries
+
+  Database Schema gaps
+
+  ┌────────────────────────────────────────────────────┬─────────┐
+  │              Documented Column/Table               │ Status  │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ pending_messages table                             │ Missing │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ observations.content_hash                          │ Missing │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ observations.agent_type                            │ Missing │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ observations.agent_id                              │ Missing │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ observations.generated_by_model                    │ Missing │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ sdk_sessions.platform_source                       │ Missing │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ UNIQUE(memory_session_id, content_hash) constraint │ Missing │
+  └────────────────────────────────────────────────────┴─────────┘
+
+  Other gaps
+  - No separate Chroma sync for summaries
+
+  Database Schema gaps
+
+  ┌────────────────────────────────────────────────────┬─────────┐
+  │              Documented Column/Table               │ Status  │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ pending_messages table                             │ Missing │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ observations.content_hash                          │ Missing │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ observations.agent_type                            │ Missing │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ observations.agent_id                              │ Missing │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ observations.generated_by_model                    │ Missing │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ sdk_sessions.platform_source                       │ Missing │
+  ├────────────────────────────────────────────────────┼─────────┤
+  │ UNIQUE(memory_session_id, content_hash) constraint │ Missing │
+  └────────────────────────────────────────────────────┴─────────┘
+
+  Other gaps
+
+  - Change observation type — documented in parser.ts line but not in ObservationType.cs enum (which has Modification, Action, Observation instead)
+  - CLAUDE_MEM_EXCLUDED_PROJECTS env var — not checked anywhere
+  - CLAUDE_MEM_SKIP_TOOLS env var — not checked; skip list is hardcoded in PS1
+
+  ---
+  Summary
+
+  The biggest structural difference is that the documented pipeline uses an async queue + persistent SDK agent conversation, while the C# implementation does synchronous storage + optional fire-and-forget LLM
+  enrichment. The top-priority gaps for compliance are:
+
+  1. No deduplication — duplicate observations can be stored
+  2. No privacy/tag handling — <private> tags pass through unfiltered
+  3. SSE broadcast never fires — Viewer UI won't get live updates
+  4. Missing schema columns — content_hash, agent_type, agent_id, generated_by_model
+  5. No queue — if the async LLM enrichment is meant to update stored observations, the current fire-and-forget path silently drops the result (line 143: // Could update the stored observation here in the
+  future)
